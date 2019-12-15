@@ -1,0 +1,26 @@
+substrate    alpha_TTF.POSCAR.vasp    # POSCAR/CIF file of Substrate layer
+film	        TCNQ.POSCAR.vasp       # POSCAR/CIF file of film layer			
+substrateMI     (1,0,0)      # Miller indices of Substrate, format: (1,1,1)
+filmMI          (1,1,1)      # Miller indices of film, format: (1,1,1)
+nSubLayer       3          # Number of substrate slab layers
+nFilmLayer      3           # Number of film slab layers
+vacuum          20		     # Thickness of vacuum in angstrom
+maxArea         500          # Maximum area of superlattices in square Angstrom
+area_tol	    0.10		 # Tolerance of area misfit 
+length_tol      0.10		 # Tolerance of length misfit
+angel_tol       0.10 		 # Tolerance of angel misfit
+distance	    2			 # Substrate-film distance at interface in Angstrom 
+nStruc 			10			 # Number of structures for each orientation
+shift_generate  True		 # Creating shifted strucutes of each generate interface
+xy_shift-range  [-7,7]		 # Shift range in XY-plane in Angstrom; insert [LL,UL] or None
+xy_shift-steps  11		     # Number of steps for XY-displacement values
+z_shfit_range   None	     # Shift range in Z-axis in Angstrom; insert [LL,UL] or None
+z_shfit_steps   0	         # Number of steps for Z-displacement values
+isorganic       True         # whether the system is organic or not
+------------------------------------------------------------------------------
+#TOADD
+#capAtmSub     None            # Atom to cap the substrate exposed surface or None
+#capAtmDep     None         # Atom to cap deposit exposed surface or None
+
+
+

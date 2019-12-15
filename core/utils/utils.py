@@ -1,0 +1,1002 @@
+import numpy as np
+import math
+import pymatgen as mg
+import networkx as nx
+import networkx.algorithms.isomorphism as iso
+from networkx.readwrite import json_graph
+from networkx.drawing.nx_agraph import write_dot
+from pymatgen.analysis.graphs import *
+import ase
+from ase.spacegroup import crystal
+from ase.visualize import view
+from pymatgen.io.vasp.inputs import Poscar
+from pymatgen.core.structure import Molecule
+import os
+from pymatgen.core.sites import PeriodicSite
+from ase.lattice.surface import *
+from ase.io import *
+# used for deciding which atoms are bonded
+from pymatgen.analysis.local_env import JmolNN
+import configparser
+import os
+import sys
+import time
+from pymatgen.io.cif import CifWriter
+from tqdm import tqdm
+
+
+def coords_sperator(coords, num, is_sub=True):
+    new_coords = []
+    for i in coords:
+        if i not in new_coords:
+            new_coords.append(i)
+    coords = np.array(sorted(new_coords, reverse=is_sub))
+    return coords[range(num)]
+
+
+def dotproduct(v1, v2):
+    return sum((a*b) for a, b in zip(v1, v2))
+
+
+def length(v):
+    return math.sqrt(dotproduct(v, v))
+
+
+def angle(v1, v2):
+    return math.acos(dotproduct(v1, v2) / (length(v1) * length(v2)))
+
+
+def tri_area(a, b, c):
+    # calculate the sides
+    s = (a + b + c) / 2
+    # calculate the area
+    area = (s*(s-a)*(s-b)*(s-c)) ** 0.5
+    return area
+
+
+def fast_norm(a):
+    """
+    Much faster variant of numpy linalg norm
+    """
+    return np.sqrt(np.dot(a, a))
+
+
+def vec_area(a, b):
+    """
+    Area of lattice plane defined by two vectors
+    """
+    return fast_norm(np.cross(a, b))
+
+
+def reduce_vectors(a, b):
+    """
+    Generate independent and unique basis vectors based on the
+    methodology of Zur and McGill
+    """
+    if np.dot(a, b) < 0:
+        return reduce_vectors(a, -b)
+
+    if fast_norm(a) > fast_norm(b):
+        return reduce_vectors(b, a)
+
+    if fast_norm(b) > fast_norm(np.add(b, a)):
+        return reduce_vectors(a, np.add(b, a))
+
+    if fast_norm(b) > fast_norm(np.subtract(b, a)):
+        return reduce_vectors(a, np.subtract(b, a))
+
+    return [a, b]
+
+
+def mat_clean(mat):
+    round_digit = 8
+    cmat = []
+    for i in range(len(mat)):
+        tmat = []
+        for j in range(len(mat[0])):
+            tmat.append(np.round(mat[i][j], round_digit))
+        cmat.append(tmat)
+    return cmat
+
+
+def scale_mat(sc_mat):
+    scale_matix = [[sc_mat[0][0], sc_mat[0][1], 0],
+                   [sc_mat[1][0], sc_mat[1][1], 0], [0, 0, 1]]
+    return scale_matix
+
+
+def check_length_of_molecules(molecules):
+    tmp = []
+    for i in range(len(molecules)):
+        tmp.append(len(molecules[i]))
+
+
+def modify_poscar(file):
+    index = 0
+    prev_file = open(file, 'r')
+    new_file = open(file+'.new', 'w')
+    for line in prev_file:
+        if index == 0:
+            tmp = line
+            new_file.write('slab\n')
+        elif index == 5:
+            new_file.write(tmp)
+            new_file.write(line)
+        else:
+            new_file.write(line)
+        index = index+1
+    os.rename(file+'.new', file)
+
+
+def get_broken_molecules(self, bulk_subgraphs, use_weights=False):
+
+     ############compare each molecule in slab to each molecule in the bulk, get rid of isomorohic, molecules store the brokens #############
+    """
+    Retrieve broken_subgraphs as molecules
+
+    Will return nonunique molecules, duplicates
+    present in the crystal (a duplicate defined as an
+    isomorphic subgraph).
+
+
+    :return: list of nonunique broken Molecules in Structure
+    """
+
+    # creating a supercell is an easy way to extract
+    # molecules (and not, e.g., layers of a 2D crystal)
+    # without adding extra logic
+    supercell_sg = self*(3, 3, 1)
+
+    # make undirected to find connected subgraphs
+    supercell_sg.graph = nx.Graph(supercell_sg.graph)
+
+    # find subgraphs
+    all_subgraphs = list(nx.connected_component_subgraphs(supercell_sg.graph))
+
+    # discount subgraphs that lie across *supercell* boundaries
+    # these will subgraphs representing crystals
+    molecule_subgraphs = []
+    for subgraph in all_subgraphs:
+        intersects_boundary = any([d['to_jimage'] != (0, 0, 0)
+                                   for u, v, d in subgraph.edges(data=True)])
+        if not intersects_boundary:
+            molecule_subgraphs.append(subgraph)
+
+    # add specie names to graph to be able to test for isomorphism
+    for subgraph in molecule_subgraphs:
+        for n in subgraph:
+            subgraph.add_node(n, specie=str(supercell_sg.structure[n].specie))
+
+    # now define how we test for isomorphism
+    def node_match(n1, n2):
+        return n1['specie'] == n2['specie']
+
+    def edge_match(e1, e2):
+        if use_weights:
+            return e1['weight'] == e2['weight']
+        else:
+            return True
+    nm = iso.categorical_node_match("specie", "ERROR")
+    # remove complete molecules in subgraphs
+    different_subgraphs = []
+
+    start = time.time()
+    for subgraph in molecule_subgraphs:
+        # check if the molecule has same number of atom with the bulk molecules
+
+        #num_atoms_bulk=[g.number_of_nodes() for g in bulk_subgraphs]
+
+        #present_by_num_atom=any(subgraph.number_of_nodes()==n for n in num_atoms_bulk)
+
+        # if  present_by_num_atom==False:
+        #    different_subgraphs.append(subgraph)
+        # else:
+        already_present = [nx.is_isomorphic(subgraph, g,
+                                            node_match=nm)
+                           for g in bulk_subgraphs]
+        if not any(already_present):
+            different_subgraphs.append(subgraph)
+
+    # get Molecule objects for each subgraph
+    molecules = []
+    for subgraph in different_subgraphs:
+
+        coords = [supercell_sg.structure[n].coords for n
+                  in subgraph.nodes()]
+        species = [supercell_sg.structure[n].specie for n
+                   in subgraph.nodes()]
+
+        molecule = Molecule(species, coords)
+
+        # shift so origin is at center of mass
+        #molecule = molecule.get_centered_molecule()
+
+        molecules.append(molecule)
+
+    return molecules
+
+
+def get_bulk_molecules(self, use_weights=False):
+    #########get rid of the repetitve molecule in bulk, only left with unique molecule######
+    """
+    Retrieve subgraphs as molecules, useful for extracting
+    molecules from periodic crystals.
+
+    Will only return unique molecules, not any duplicates
+    present in the crystal (a duplicate defined as an
+    isomorphic subgraph).
+
+    :param use_weights (bool): If True, only treat subgraphs
+    as isomorphic if edges have the same weights. Typically,
+    this means molecules will need to have the same bond
+    lengths to be defined as duplicates, otherwise bond
+    lengths can differ. This is a fairly robust approach,
+    but will treat e.g. enantiomers as being duplicates.
+
+    :return: list of unique Molecules in Structure
+    """
+
+    # creating a supercell is an easy way to extract
+    # molecules (and not, e.g., layers of a 2D crystal)
+    # without adding extra logic
+    # enlarge the structureGraph object to a supercell
+    supercell_sg = self*(3, 3, 1)
+
+    # make undirected to find connected subgraphs
+    # create networkx undirected graph object to
+    supercell_sg.graph = nx.Graph(supercell_sg.graph)
+    # store the input graph
+
+    # find subgraphs
+    all_subgraphs = list(nx.connected_component_subgraphs(
+        supercell_sg.graph))  # takes networks undirected graph object
+    # for subs in all_subgraphs:
+    #    print("subgraphs is:",subs.nodes())
+    # as parameter,find all the subgraphs as networkx graph object for each component in the undirected graph.method in the list is
+    # graph generator
+
+    # discount subgraphs that lie across *supercell* boundaries
+    # these will subgraphs representing crystals
+    # why getting rid of the boundaries????????
+    '''
+        molecule_subgraphs = []
+        for subgraph in all_subgraphs:
+            intersects_boundary = any([d['to_jimage'] != (0, 0, 0)
+                                      for u, v, d in subgraph.edges(data=True)])
+                                    #subgraph.edges return edges as tuple with **point, neigbot,data**
+            if not intersects_boundary:
+                molecule_subgraphs.append(subgraph)
+                print("molecules not at boundary are:",subgraph)
+       '''
+    # add specie names to graph to be able to test for isomorphism
+    for subgraph in all_subgraphs:
+        for n in subgraph:
+            subgraph.add_node(n, specie=str(supercell_sg.structure[n].specie))
+
+    # now define how we test for isomorphism
+    def node_match(n1, n2):
+        return n1['specie'] == n2['specie']
+
+    def edge_match(e1, e2):
+        if use_weights:
+            return e1['weight'] == e2['weight']
+        else:
+            return True
+    nm = iso.categorical_node_match("specie", "ERROR")
+    # prune duplicate subgraphs
+    unique_subgraphs = []
+    for subgraph in all_subgraphs:
+
+        already_present = [nx.is_isomorphic(subgraph, g,
+                                            node_match=node_match,
+                                            edge_match=edge_match)
+                           for g in unique_subgraphs]
+
+        if not any(already_present):
+            unique_subgraphs.append(subgraph)
+
+    # get Molecule objects for each subgraph
+    molecules = []
+    for subgraph in unique_subgraphs:
+
+        coords = [supercell_sg.structure[n].coords for n
+                  in subgraph.nodes()]
+        # ???????????pymatgen structure object of structureGraph object
+        species = [supercell_sg.structure[n].specie for n
+                   in subgraph.nodes()]
+
+        molecule = Molecule(species, coords)
+
+        # shift so origin is at center of mass
+        #molecule = molecule.get_centered_molecule()
+
+        molecules.append(molecule)
+
+    return molecules, unique_subgraphs
+#################convert to undirected mx.graph and then determine if isomorphic###############
+
+
+def isomorphic_to(self, other):
+    """
+    Checks if the graphs of two MoleculeGraphs are isomorphic to one
+    another. In order to prevent problems with misdirected edges, both
+    graphs are converted into undirected nx.Graph objects.
+
+    :param other: MoleculeGraph object to be compared.
+    :return: bool
+    """
+    if self.molecule.composition != other.molecule.composition:
+        return False
+    else:
+        self_undir = self.graph.to_undirected()
+        other_undir = other.graph.to_undirected()
+        nm = iso.categorical_node_match("specie", "ERROR")
+        isomorphic = nx.is_isomorphic(self_undir, other_undir, node_match=nm)
+        return isomorphic
+
+
+def reduced_sites(molecules, slab):
+    sites = []
+    for molecule in molecules:
+        for curr_site in molecule:
+            curr_site = PeriodicSite(
+                curr_site.specie, curr_site.coords, slab.lattice, coords_are_cartesian=True)
+            tmp = [curr_site.is_periodic_image(site) for site in sites]
+            if not any(tmp):
+                sites.append(curr_site)
+    return sites
+
+
+def is_isomorphic(molecule1, molecule2):
+    return isomorphic_to(MoleculeGraph.with_local_env_strategy(molecule1, JmolNN()), MoleculeGraph.with_local_env_strategy(molecule2, JmolNN()))
+
+
+def double_screen(slab_molecules, bulk_molecules):
+    # double check with bulk if there is any molecule already  present in bulk3
+    delete_list = []
+    for bulk_molecule in bulk_molecules:
+        for i, slab_molecule in enumerate(slab_molecules):
+            # print(i,len(slab_molecule))
+            if is_isomorphic(bulk_molecule, slab_molecule):
+                delete_list.append(i)
+    tmp = [x for i, x in enumerate(slab_molecules) if i not in delete_list]
+    return tmp
+
+
+def updatePOSCAR(output_file):
+    """This function is used to correct the output file (POSCAR) of ase.
+    :param
+    -----
+    output_file : (string) the file of surface writen by the write function of ase.
+    :return
+    -------
+    file : (string) the file that is corrected.
+    """
+    with open(output_file, 'r') as original_file:
+        lines = original_file.readlines()
+        line1 = lines[0]
+        lines.insert(5, "  " + line1)
+    with open(output_file, 'w') as final_file_1:
+        for i in range(len(lines)):
+            final_file_1.writelines(lines[i])
+    structure = mg.Structure.from_file(output_file)
+    lattice = Lattice(structure.lattice.matrix)
+    frac_coords = lattice.get_fractional_coords(structure.cart_coords)
+    for i in range(frac_coords.shape[0]):
+        for j in range(frac_coords.shape[1]):
+            if abs(frac_coords[i][j] - 1) < 1e-5:
+                frac_coords[i][j] = 1
+            if abs(frac_coords[i][j] - 0) < 1e-5:
+                frac_coords[i][j] = 0
+    with open(output_file, 'r') as final_file_2:
+        lines = final_file_2.readlines()
+        lines[7] = 'Direct' + '\n'
+        for i in range(np.array(frac_coords).shape[0]):
+            lines[8 + i] = "    " + str(np.array(frac_coords)[i, :][0]) + ' ' + str(np.array(frac_coords)[i, :][1]) +\
+                           ' ' + str(np.array(frac_coords)[i, :][2]) + '\n'
+    with open(output_file, 'w') as final_file:
+        for i in range(len(lines)):
+            final_file.writelines(lines[i])
+
+
+def node_match(n1, n2):
+    """the strategy for node matching in is_isomorphic.
+    :param
+    ------
+    n1, n2 : (node).
+    :return
+    -------
+    True of false : (bool)
+        based on whether the species of two nodes are the same.
+    """
+    return n1['specie'] == n2['specie']
+
+
+def edge_match(e1, e2):
+    """the strategy for edge matching in is_isomorphic.
+    :param
+    ------
+    e1, e2 : (edge).
+    :return
+    -------
+    True or false : (bool)
+        based on whether the length of bonds are the same or close to each other.
+    """
+    return abs(e1['weight'] - e2['weight']) / e2['weight'] < 1e-5
+
+
+def get_bulk_subgraphs(bulk_structure_sg):
+    """get unique subgraphs of bulk based on graph algorithm.
+        This function would only return unique molecules and its graphs,
+        but not any duplicates present in the crystal.
+        (A duplicate defined as an isomorphic crystals.
+    :param
+    -----
+    bulk_structure_sg : nx.SturctureGraph class,
+        this one is actually the supercell one that is equal to(3, 3, 3) * unit cell.
+    :return
+    -------
+    unique_super_graphs : (list) [graph, ...],
+        represent the unique subgraphs in the supercell and expecially
+        in the boundary of supercell.
+    molecules : (list) [molecule, ...],
+        represent the molecules that are correlated to the unque subgraphs.
+    """
+    bulk_super_structure_sg_graph = nx.Graph(bulk_structure_sg.graph)
+    all_super_subgraphs = list(nx.connected_component_subgraphs
+                               (bulk_super_structure_sg_graph))
+    super_subgraphs = []
+    for subgraph in all_super_subgraphs:
+        intersects_boundary = any([d['to_jimage'] != (0, 0, 0)
+                                   for u, v, d in subgraph.edges(data=True)])
+        if not intersects_boundary:
+            super_subgraphs.append(subgraph)
+    for subgraph in super_subgraphs:
+        for n in subgraph:
+            subgraph.add_node(n,
+                              specie=str(bulk_structure_sg.structure[n].specie))
+    unique_super_subgraphs = []
+    for subgraph in super_subgraphs:
+        already_present = [nx.is_isomorphic(subgraph, g,
+                                            node_match=node_match,
+                                            edge_match=edge_match)
+                           for g in unique_super_subgraphs]
+        if not any(already_present):
+            unique_super_subgraphs.append(subgraph)
+    molecules = []
+    for subgraph in unique_super_subgraphs:
+        coords = [bulk_structure_sg.structure[n].coords
+                  for n in subgraph.nodes()]
+        species = [bulk_structure_sg.structure[n].specie
+                   for n in subgraph.nodes()]
+        molecule = mg.Molecule(species=species, coords=coords)
+        molecules.append(molecule)
+    return unique_super_subgraphs, molecules
+
+
+def get_slab_different_subgraphs(slab_supercell_sg, unique_super_bulk_subgraphs):
+    """this function is used to find all the subgraphs in slab that
+        are different from those in bulk.
+    :param
+    -----
+    slab_supercell_sg : nx.StructureGraph,
+        the graph of the whole slabs.
+        (Note: In order to thoughtoutly describe the graph,
+        the slab_supercell_sg = (3, 3, 1) * slab_sg)
+    unique_super_bulk_subgraphs : (list).
+    :return
+    -------
+    different_subgraphs : (list)
+        [different_subgraph, ...], which is the list of subgraphs that
+        are different from those in bulk. In this function,
+        we would only find the different subgraphs based on its species.
+    slab_molecules : (list)
+        [slab_molecule, ...], slab_molecule is the mg.Molecule of diffenert_subgraphs.
+    """
+    slab_supercell_sg_graph = nx.Graph(slab_supercell_sg.graph)
+    all_subgraphs = list(nx.connected_component_subgraphs
+                         (slab_supercell_sg_graph))
+    molecule_subgraphs = []
+    for subgraph in all_subgraphs:
+        intersets_boundary = any([d['to_jimage'] != (0, 0, 0)
+                                  for u, v, d in subgraph.edges(data=True)])
+        if not intersets_boundary:
+            molecule_subgraphs.append(subgraph)
+    for subgraph in molecule_subgraphs:
+        for n in subgraph:
+            subgraph.add_node(n, specie=str(slab_supercell_sg.structure[n].specie))
+
+    nm = iso.categorical_node_match("specie", "ERROR")
+    different_subgraphs = []
+    for subgraph in molecule_subgraphs:
+        already_present = [nx.is_isomorphic(subgraph, g,
+                                            node_match=nm)
+                           for g in unique_super_bulk_subgraphs]
+        if not any(already_present):
+            different_subgraphs.append(subgraph)
+
+    slab_molecules = []
+    for subgraph in different_subgraphs:
+        coords = [slab_supercell_sg.structure[n].coords
+                  for n in subgraph.nodes()]
+        species = [slab_supercell_sg.structure[n].specie
+                   for n in subgraph.nodes()]
+        molecule = mg.Molecule(species=species, coords=coords)
+        slab_molecules.append(molecule)
+    return different_subgraphs, slab_molecules
+
+
+def belong_to(species1, species2):
+    if len(species1) > len(species2):
+        return False
+    i = 0
+    species_1 = species1[:]
+    species_2 = species2[:]
+    while i < len(species_1):
+        find = False
+        for j in range(len(species_2)):
+            if species_1[i] == species_2[j]:
+                del species_1[i]
+                find = True
+                del species_2[j]
+                break
+        if find is False:
+            return False
+    return True
+
+
+def length_belong_to(weights1, weights2):
+    """weights are the list [weight, weight, ...] of one node"""
+    if len(weights1) > len(weights2):
+        return False
+    i = 0
+    weights_1 = weights1[:]
+    weights_2 = weights2[:]
+    while i < len(weights_1):
+        find = False
+        for j in range(len(weights_2)):
+            if abs((weights_1[i] - weights_2[j]) / weights_2[j]) < 1e-5:
+                del weights_1[i]
+                find = True
+                del weights_2[j]
+                break
+        if find is False:
+            return False
+    return True
+
+
+def weights_all_belong_to(all_weight1, all_weight2, species1, species2):
+    if len(all_weight1) > len(all_weight2):
+        return False
+    i = 0
+    account = 0
+    total = len(all_weight1)
+    all_weight_1 = all_weight1[:]
+    all_weight_2 = all_weight2[:]
+    species_1 = species1[:]
+    species_2 = species2[:]
+    while i < len(all_weight_1):
+        find = False
+        # print("a", sorted(all_weight_1[i]))
+        for j in range(len(all_weight_2)):
+            # print("b", sorted(all_weight_2[j]))
+            if length_belong_to(all_weight_1[i], all_weight_2[j]) and species_1[i] == species_2[j]:
+                del all_weight_1[i]
+                del species_1[i]
+                del species_2[j]
+                account += 1
+                del all_weight_2[j]
+                find = True
+                break
+        if not find:
+            i += 1
+            # print("didn't find a!\n")
+        # else:
+            # print('\n')
+    if account >= 2.0 / 3.0 * total:
+        return True
+    return False
+
+
+def brokenMolecules_and_corresspoundingIntactMolecules(new_different_subgraphs,
+                                                       unique_super_subgraphs):
+    qualified_subgraphs = []
+    qualified_unique_subgraphs = []
+    # account = 1
+    print("trying to find the connection between broken molecules "
+          "and intact molecules")
+    for subgraph in tqdm(new_different_subgraphs):
+        subgraph_species = []
+        weights_all = []
+        for n, nbrs in subgraph.adjacency():
+            subgraph_species.append(subgraph.node[n]['specie'])
+            weights = []
+            for nbr, eattr in nbrs.items():
+                weights.append(eattr['weight'])
+            weights_all.append(weights)
+        find = False
+        for unique_subgraph in unique_super_subgraphs:
+            unique_subgraph_species = []
+            unique_weights_all = []
+            for n, nbrs in unique_subgraph.adjacency():
+                unique_subgraph_species.append(unique_subgraph.node[n]['specie'])
+                weights = []
+                for nbr, eattr in nbrs.items():
+                    weights.append(eattr['weight'])
+                unique_weights_all.append(weights)
+            if not belong_to(subgraph_species, unique_subgraph_species):
+                # print("species not belongs")
+                continue
+            else:
+                if not weights_all_belong_to(weights_all, unique_weights_all,
+                                             subgraph_species,
+                                             unique_subgraph_species):
+                    # print('weights not match')
+                    continue
+                else:
+                    find = True
+                    qualified_subgraphs.append(subgraph)
+                    qualified_unique_subgraphs.append(unique_subgraph)
+                    break
+        # print(r'one loop is done {}\{}'.format(account,
+        #                                        len(new_different_subgraphs)))
+        # account += 1
+        if find is False:
+            print("can't find the qualified subgraphs")
+            sys.exit()
+    return qualified_subgraphs, qualified_unique_subgraphs
+
+
+def fix_broken_molecules(qualified_subgraphs,
+                         qualified_unique_subgraphs,
+                         bulk_super_structure_sg,
+                         slab_supercell_sg,
+                         slab, c_frac_min, fixed_c_negative=False):
+    molecules_new = []
+    print("trying to fix the broken molecules...")
+    for i in tqdm(range(len(qualified_subgraphs))):
+        qualified_subgraphs_species = []
+        qualified_subgraphs_nodes_neibs = []
+        qualified_subgraphs_all_weights = []
+        nodes_qualified_subgraphs = []
+        for n, nbrs in qualified_subgraphs[i].adjacency():
+            nodes_qualified_subgraphs.append(n)
+            neibs = []
+            weights = []
+            qualified_subgraphs_species.append(qualified_subgraphs[i].node[n]['specie'])
+            for nbr, eattr in nbrs.items():
+                neibs.append(nbr)
+                weights.append(eattr['weight'])
+            qualified_subgraphs_nodes_neibs.append(neibs)
+            qualified_subgraphs_all_weights.append(weights)
+        qualified_unique_subgraphs_species = []
+        qualified_unique_subgraphs_nodes_neibs = []
+        qualified_unique_subgraphs_all_weights = []
+        nodes_qualified_unique_subgraphs = []
+        for n, nbrs in qualified_unique_subgraphs[i].adjacency():
+            nodes_qualified_unique_subgraphs.append(n)
+            neibs = []
+            weights = []
+            qualified_unique_subgraphs_species.append(qualified_unique_subgraphs[i].node[n]['specie'])
+            for nbr, eattr in nbrs.items():
+                neibs.append(nbr)
+                weights.append(eattr['weight'])
+            qualified_unique_subgraphs_all_weights.append(weights)
+            qualified_unique_subgraphs_nodes_neibs.append(neibs)
+        node1 = []
+        node2 = []
+        account = 0
+        for t in range(len(qualified_subgraphs_species)):
+            account = 0
+            for k in range(len(qualified_unique_subgraphs_species)):
+                account = 0
+                if qualified_subgraphs_species[t] == qualified_unique_subgraphs_species[k] \
+                        and length_belong_to(qualified_subgraphs_all_weights[t],
+                                             qualified_unique_subgraphs_all_weights[k]) \
+                        and len(qualified_subgraphs_all_weights[t]) == 3:
+                    node1 = [nodes_qualified_subgraphs[t]]
+                    node2 = [nodes_qualified_unique_subgraphs[k]]
+                    account = 0
+                    for a_index, a_weight in enumerate(qualified_subgraphs_all_weights[t]):
+                        for index, weight in enumerate(qualified_unique_subgraphs_all_weights[k]):
+                            has1 = qualified_subgraphs_nodes_neibs[t][a_index] in node1
+                            has2 = qualified_unique_subgraphs_nodes_neibs[k][index] in node2
+                            if abs(weight - a_weight) / weight < 1e-5 and has1 is False and has2 is False:
+                                node1.append(qualified_subgraphs_nodes_neibs[t][a_index])
+                                node2.append(qualified_unique_subgraphs_nodes_neibs[k][index])
+                                account += 1
+                                break
+                if account >= 3:
+                    break
+            if account >= 3:
+                break
+        if account < 3:
+            print("can't find the corresspounding point")
+            sys.exit()
+
+        coords1 = [slab_supercell_sg.structure[n].coords for n in node1]
+        coords2 = [bulk_super_structure_sg.structure[n].coords for n in node2]
+        relative1 = np.array([np.array(coords1[n]) - np.array(coords1[0])
+                              for n in list(range(1, 4))])
+        relative2 = np.array([np.array(coords2[n]) - np.array(coords2[0])
+                              for n in list(range(1, 4))])
+        try:
+            rotationMatrix = np.dot(relative1.T, np.linalg.inv(relative2.T))
+        except np.linalg.LinAlgError as err:
+            if 'Singular matrix' in str(err):
+                for m in range(relative1.shape[0]):
+                    if relative1[m, 0] == 0 and relative1[m, 1] == 0 and relative1[m, 2] == 0:
+                        relative1[m, 0] = 1e-9
+                        relative1[m, 2] = -1e-9
+                for m in range(relative1.shape[1]):
+                    if relative1[0, m] == 0 and relative1[1, m] == 0 and relative1[2, m] == 0:
+                        relative1[0, m] = 1e-9
+                        relative1[2, m] = -1e-9
+                for m in range(relative2.shape[0]):
+                    if relative2[m, 0] == 0 and relative2[m, 1] == 0 and relative2[m, 2] == 0:
+                        relative2[m, 0] = 1e-9
+                        relative2[m, 2] = -1e-9
+                for m in range(relative2.shape[1]):
+                    if relative2[0, m] == 0 and relative2[1, m] == 0 and relative2[2, m] == 0:
+                        relative2[0, m] = 1e-9
+                        relative2[2, m] = -1e-9
+                rotationMatrix = np.dot(relative1.T, np.linalg.inv(relative2.T))
+            else:
+                print('failed')
+                sys.exit()
+        # print('find the rotationMatrix')
+        relative = np.array([np.array(bulk_super_structure_sg.structure[n].coords)
+                             - np.array(coords2[0])
+                             for n in qualified_unique_subgraphs[i].nodes()])
+        # print(node2[0], qualified_unique_subgraphs[i].nodes())
+        # print(rotationMatrix, relative)
+        new_relatives = np.dot(rotationMatrix, relative.T).T
+        coords = [np.array(coords1[0]) + new_relative
+                  for new_relative in new_relatives]
+        species = [bulk_super_structure_sg.structure[n].specie
+                   for n in qualified_unique_subgraphs[i].nodes()]
+        molecule = mg.Molecule(species=species, coords=coords)
+        molecules_new.append(molecule)
+    sites = []
+    molecules_new_backup = list(molecules_new)
+    if not fixed_c_negative:
+        i = 0
+        while i < len(molecules_new):
+            under = False
+            for curr_site in molecules_new[i]:
+                curr_site = mg.PeriodicSite(curr_site.specie,
+                                            curr_site.coords,
+                                            slab.lattice,
+                                            coords_are_cartesian=True)
+                if curr_site.frac_coords[2] < c_frac_min:
+                    del molecules_new[i]
+                    under = True
+                    break
+            if under is False:
+                i += 1
+    if len(molecules_new) == 0:
+        molecules_new = molecules_new_backup
+    for molecule in molecules_new:
+        for curr_site in molecule:
+            curr_site = mg.PeriodicSite(curr_site.specie,
+                                        curr_site.coords,
+                                        slab.lattice,
+                                        coords_are_cartesian=True)
+            tmp = [curr_site.is_periodic_image(site) for site in sites]
+            if not any(tmp):
+                sites.append(curr_site)
+    for site in sites:
+        slab.append(species=site.specie, coords=site.coords,
+                    coords_are_cartesian=True)
+    return slab
+
+def put_everyatom_into_cell(slab):
+    coords = slab.frac_coords
+    for i in range(coords.shape[0]):
+        for j in range(coords.shape[1]):
+            coords[i, j] = coords[i, j] % 1
+    species = slab.species
+    molecule = mg.Molecule(species, coords)
+    sites = []
+    for site in molecule:
+        site = mg.PeriodicSite(site.specie,
+                               site.coords,
+                               slab.lattice)
+        tmp = [site.is_periodic_image(item, tolerance=1e-5) for item in sites]
+        if not any(tmp):
+            sites.append(site)
+    delete_list = []
+    for i, atom in enumerate(slab):
+        delete_list.append(i)
+    slab.remove_sites(delete_list)
+    for site in sites:
+        slab.append(species=site.specie, coords=site.coords, coords_are_cartesian=True)
+    return slab
+
+
+def timeTest(func):
+    def clock(*args):
+        working_dir = args[-1]
+        folder_files = working_dir.split('/')
+        test = False
+        for item in folder_files:
+            if 'test' in item:
+                test = True
+                break
+        if test is True:
+            t0 = time.perf_counter()
+            result = func(*args)
+            t1 = time.perf_counter() - t0
+            name = func.__name__
+            arg_str = ','.join(repr(arg) for arg in args)
+            print("[%0.8fs] %s(%s)" % (t1, name, arg_str))
+            return result
+        else:
+            result = func(*args)
+            return result
+    return clock
+
+
+def less_fix_broken_molecules(less_broken_subgraphs, less_intact_subgraphs,
+                              bulk_super_structure_sg,
+                              slab_supercell_sg,
+                              slab, c_frac_min,
+                              fixed_c_negative=True):
+    molecules_new = []
+    for i in tqdm(range(len(less_broken_subgraphs))):
+        broken_subgraphs_species = []
+        broken_subgraphs_nodes_neibs = []
+        broken_subgraphs_weights = []
+        nodes_broken_subgraphs = []
+        for n, nbrs in less_broken_subgraphs[i].adjacency():
+            nodes_broken_subgraphs.append(n)
+            neibs = []
+            weights = []
+            broken_subgraphs_species.append(less_broken_subgraphs[i].node[n]['specie'])
+            for nbr, eattr in nbrs.items():
+                neibs.append(nbr)
+                weights.append(eattr['weight'])
+            broken_subgraphs_nodes_neibs.append(neibs)
+            broken_subgraphs_weights.append(weights)
+        intact_subgraphs_species = []
+        intact_subgraphs_nodes_neibs = []
+        intact_subgraphs_weights = []
+        nodes_intact_subgraphs = []
+        for n, nbrs in less_intact_subgraphs[i].adjacency():
+            nodes_intact_subgraphs.append(n)
+            neibs = []
+            weights = []
+            intact_subgraphs_species.append(less_intact_subgraphs[i].node[n]['specie'])
+            for nbr, eattr in nbrs.items():
+                neibs.append(nbr)
+                weights.append(eattr['weight'])
+            intact_subgraphs_nodes_neibs.append(neibs)
+            intact_subgraphs_weights.append(weights)
+        Find = False
+        nodes1 = []
+        nodes2 = []
+        for j in range(len(broken_subgraphs_species)):
+            if len(broken_subgraphs_nodes_neibs[j]) == 2:
+                nodes1 = []
+                weights1 = []
+                nodes1.append(nodes_broken_subgraphs[j])
+                for index, neib in enumerate(broken_subgraphs_nodes_neibs[j]):
+                    nodes1.append(neib)
+                    weights1.append(broken_subgraphs_weights[j][index])
+                nodes2 = []
+                for k in range(len(intact_subgraphs_species)):
+                    if broken_subgraphs_species[j] == intact_subgraphs_species[k]\
+                            and length_belong_to(broken_subgraphs_weights[j], intact_subgraphs_weights[k]):
+                        nodes2.append(nodes_intact_subgraphs[k])
+                        for index, weight in enumerate(weights1):
+                            for index_intact, weight_intact in enumerate(intact_subgraphs_weights[k]):
+                                if abs(weight - weight_intact) / weight_intact < 1e-5\
+                                        and less_broken_subgraphs[i].\
+                                        node[nodes1[index + 1]]['specie'] == less_intact_subgraphs[i].\
+                                        node[intact_subgraphs_nodes_neibs[k][index_intact]]['specie']:
+                                    nodes2.append(intact_subgraphs_nodes_neibs[k][index_intact])
+                        if len(nodes2) == 3:
+                            Find = True
+                            break
+            if Find is True:
+                # print('Find it')
+                break
+        if Find is False:
+            print("Sucks")
+            sys.exit()
+        rest_item = -1
+        rest_index = -1
+        for index, item in enumerate(nodes_broken_subgraphs):
+            if item not in nodes1:
+                rest_item = item
+                rest_index = index
+        nodes1.append(rest_item)
+        Find = False
+        for j in range(len(intact_subgraphs_species)):
+            if intact_subgraphs_species[j] == broken_subgraphs_species[rest_index]\
+                    and length_belong_to(broken_subgraphs_weights[rest_index], intact_subgraphs_weights[j]):
+                neibs = intact_subgraphs_nodes_neibs[j]
+                temp = [neib == node2 for neib in neibs for node2 in nodes2]
+                if any(temp):
+                    nodes2.append(nodes_intact_subgraphs[j])
+                    Find = True
+                    break
+        if Find is not True:
+            print("didn't find the fouth one!")
+            sys.exit()
+        node1, node2 = nodes1, nodes2
+        coords1 = [slab_supercell_sg.structure[n].coords for n in node1]
+        coords2 = [bulk_super_structure_sg.structure[n].coords for n in node2]
+        relative1 = np.array([np.array(coords1[n]) - np.array(coords1[0])
+                              for n in list(range(1, 4))])
+        relative2 = np.array([np.array(coords2[n]) - np.array(coords2[0])
+                              for n in list(range(1, 4))])
+        try:
+            rotationMatrix = np.dot(relative1.T, np.linalg.inv(relative2.T))
+        except np.linalg.LinAlgError as err:
+            if 'Singular matrix' in str(err):
+                for m in range(relative1.shape[0]):
+                    if relative1[m, 0] == 0 and relative1[m, 1] == 0 and relative1[m, 2] == 0:
+                        relative1[m, 0] = 1e-9
+                        relative1[m, 2] = -1e-9
+                for m in range(relative1.shape[1]):
+                    if relative1[0, m] == 0 and relative1[1, m] == 0 and relative1[2, m] == 0:
+                        relative1[0, m] = 1e-9
+                        relative1[2, m] = -1e-9
+                for m in range(relative2.shape[0]):
+                    if relative2[m, 0] == 0 and relative2[m, 1] == 0 and relative2[m, 2] == 0:
+                        relative2[m, 0] = 1e-9
+                        relative2[m, 2] = -1e-9
+                for m in range(relative2.shape[1]):
+                    if relative2[0, m] == 0 and relative2[1, m] == 0 and relative2[2, m] == 0:
+                        relative2[0, m] = 1e-9
+                        relative2[2, m] = -1e-9
+                rotationMatrix = np.dot(relative1.T, np.linalg.inv(relative2.T))
+            else:
+                print('failed')
+                sys.exit()
+        # print('find the rotationMatrix')
+        relative = np.array([np.array(bulk_super_structure_sg.structure[n].coords)
+                             - np.array(coords2[0])
+                             for n in less_intact_subgraphs[i].nodes()])
+        # print(node2[0], qualified_unique_subgraphs[i].nodes())
+        # print(rotationMatrix, relative)
+        new_relatives = np.dot(rotationMatrix, relative.T).T
+        coords = [np.array(coords1[0]) + new_relative
+                  for new_relative in new_relatives]
+        species = [bulk_super_structure_sg.structure[n].specie
+                   for n in less_intact_subgraphs[i].nodes()]
+        molecule = mg.Molecule(species=species, coords=coords)
+        molecules_new.append(molecule)
+    sites = []
+    molecules_new_backup = list(molecules_new)
+    if not fixed_c_negative:
+        i = 0
+        while i < len(molecules_new):
+            under = False
+            for curr_site in molecules_new[i]:
+                curr_site = mg.PeriodicSite(curr_site.specie,
+                                            curr_site.coords,
+                                            slab.lattice,
+                                            coords_are_cartesian=True)
+                if curr_site.frac_coords[2] < c_frac_min:
+                    del molecules_new[i]
+                    under = True
+                    break
+            if under is False:
+                i += 1
+    if len(molecules_new) == 0:
+        molecules_new = molecules_new_backup
+    for molecule in molecules_new:
+        for curr_site in molecule:
+            curr_site = mg.PeriodicSite(curr_site.specie,
+                                        curr_site.coords,
+                                        slab.lattice,
+                                        coords_are_cartesian=True)
+            tmp = [curr_site.is_periodic_image(site) for site in sites]
+            if not any(tmp):
+                sites.append(curr_site)
+    for site in sites:
+        slab.append(species=site.specie, coords=site.coords,
+                    coords_are_cartesian=True)
+    return slab
