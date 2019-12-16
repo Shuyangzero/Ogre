@@ -1,0 +1,5 @@
+ase==3.17.0
+pymatgen==2019.6.5
+numpy==1.16.4
+networkx==2.3
+tqdm==4.38.0
