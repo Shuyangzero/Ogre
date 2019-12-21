@@ -1,6 +1,10 @@
 import numpy as np
 import math
 import pymatgen as mg
+from ase.utils import gcd, basestring
+from ase.build import bulk
+from copy import deepcopy
+from numpy.linalg import norm, solve
 import networkx as nx
 import networkx.algorithms.isomorphism as iso
 from networkx.readwrite import json_graph
@@ -126,6 +130,249 @@ def modify_poscar(file):
             new_file.write(line)
         index = index+1
     os.rename(file+'.new', file)
+
+
+# this is a self_build method for generating the universal surface
+def surface_self_defined(lattice, indices, layers, vacuum=None, tol=1e-10, termination=0):
+    """Create surface from a given lattice and Miller indices.
+
+    lattice: Atoms object or str
+        Bulk lattice structure of alloy or pure metal.  Note that the
+        unit-cell must be the conventional cell - not the primitive cell.
+        One can also give the chemical symbol as a string, in which case the
+        correct bulk lattice will be generated automatically.
+    indices: sequence of three int
+        Surface normal in Miller indices (h,k,l).
+    layers: int
+        Number of equivalent layers of the slab.
+    vacuum: float
+        Amount of vacuum added on both sides of the slab.
+    termination: int
+        The termination "number" for your crystal. The same value will not
+        produce the same termination for different symetrically identical
+        bulk structures, but changing this value allows your to explore all
+        the possible terminations for the bulk structure you provide it.
+        note: this code is not well tested
+    """
+
+    indices = np.asarray(indices)
+
+    if indices.shape != (3,) or not indices.any() or indices.dtype != int:
+        raise ValueError('%s is an invalid surface type' % indices)
+
+    if isinstance(lattice, basestring):
+        lattice = bulk(lattice, cubic=True)
+
+    h, k, l = indices
+    h0, k0, l0 = (indices == 0)
+
+    if termination != 0:  # changing termination
+        import warnings
+        warnings.warn('Work on changing terminations is currently in '
+                      'progress.  Code may not behave as expected.')
+        lattice1 = deepcopy(lattice)
+        cell = lattice1.get_cell()
+        pt = [0, 0, 0]
+        millers = list(indices)
+        for index, item in enumerate(millers):
+            if item == 0:
+                millers[index] = 10 ** 9  # make zeros large numbers
+            elif pt == [0, 0, 0]:  # for numerical stability
+                pt = list(cell[index] / float(item) / np.linalg.norm(cell[index]))
+        h1, k1, l1 = millers
+        N = np.array(cell[0] / h1 + cell[1] / k1 + cell[2] / l1)
+        n = N / np.linalg.norm(N)  # making a unit vector normal to cut plane
+        d = [np.round(np.dot(n, (a - pt)), 4) for a in lattice.get_scaled_positions()]
+        d = set(d)
+        d = sorted(list(d))
+        d = [0] + d  # distances of atoms from cut plane
+        displacement = (h * cell[0] + k * cell[1] + l * cell[2]) * d[termination]
+        lattice1.positions += displacement
+        lattice = lattice1
+
+    if h0 and k0 or h0 and l0 or k0 and l0:  # if two indices are zero
+        if not h0:
+            c1, c2, c3 = [(0, 1, 0), (0, 0, 1), (1, 0, 0)]
+        if not k0:
+            c1, c2, c3 = [(0, 0, 1), (1, 0, 0), (0, 1, 0)]
+        if not l0:
+            c1, c2, c3 = [(1, 0, 0), (0, 1, 0), (0, 0, 1)]
+    else:
+        p, q = ext_gcd(k, l)
+        a1, a2, a3 = lattice.cell
+
+        # constants describing the dot product of basis c1 and c2:
+        # dot(c1,c2) = k1+i*k2, i in Z
+        k1 = np.dot(p * (k * a1 - h * a2) + q * (l * a1 - h * a3),
+                    l * a2 - k * a3)
+        k2 = np.dot(l * (k * a1 - h * a2) - k * (l * a1 - h * a3),
+                    l * a2 - k * a3)
+
+        if abs(k2) > tol:
+            i = -int(round(k1 / k2))  # i corresponding to the optimal basis
+            p, q = p + i * l, q - i * k
+
+        a, b = ext_gcd(p * k + q * l, h)
+
+        c1 = (p * k + q * l, -p * h, -q * h)
+        c2 = np.array((0, l, -k)) // abs(gcd(l, k))
+        c3 = (b, a * p, a * q)
+
+    surf = build(lattice, np.array([c1, c2, c3]), layers, tol)
+    # if vacuum is not None:
+    #     surf.center(vacuum=vacuum, axis=2)
+    return surf
+
+
+def ext_gcd(a, b):
+    if b == 0:
+        return 1, 0
+    elif a % b == 0:
+        return 0, 1
+    else:
+        x, y = ext_gcd(b, a % b)
+        return y, x - y * (a // b)
+
+
+def build(lattice, basis, layers, tol):
+    surf = lattice.copy()
+    scaled = solve(basis.T, surf.get_scaled_positions().T).T
+    scaled -= np.floor(scaled + tol)
+    surf.set_scaled_positions(scaled)
+    surf.set_cell(np.dot(basis, surf.cell), scale_atoms=True)
+    surf *= (1, 1, layers)
+    return surf
+
+
+def modify_cell(structure):
+    slab = structure.copy()
+    a1, a2, a3 = slab.cell
+    slab.set_cell([a1, a2,
+                   np.cross(a1, a2) * np.dot(a3, np.cross(a1, a2)) /
+                   norm(np.cross(a1, a2)) ** 2])
+
+    # Change unit cell to have the x-axis parallel with a surface vector
+    # and z perpendicular to the surface:
+    a1, a2, a3 = slab.cell
+    slab.set_cell([(norm(a1), 0, 0),
+                   (np.dot(a1, a2) / norm(a1),
+                    np.sqrt(norm(a2) ** 2 - (np.dot(a1, a2) / norm(a1)) ** 2), 0),
+                   (0, 0, norm(a3))],
+                  scale_atoms=True)
+    slab.pbc = (True, True, False)
+
+    scaled = slab.get_scaled_positions()
+    scaled[:, :2] %= 1
+    slab.set_scaled_positions(scaled)
+    return slab
+
+
+def handle_with_molecules(slab_move, delta, down=True):
+    slab_sg = StructureGraph.with_local_env_strategy(slab_move, JmolNN())
+    slab_supercell_sg = slab_sg * (3, 3, 1)
+    slab_sg_graph = nx.Graph(slab_supercell_sg.graph)
+    all_super_subgraphs = list(nx.connected_component_subgraphs
+                               (slab_sg_graph))
+    super_subgraphs = []
+    for subgraph in all_super_subgraphs:
+        intersects_boundary = any([d['to_jimage'] != (0, 0, 0)
+                                   for u, v, d in subgraph.edges(data=True)])
+        if not intersects_boundary:
+            super_subgraphs.append(subgraph)
+    for subgraph in super_subgraphs:
+        for n in subgraph:
+            subgraph.add_node(n,
+                              specie=str(slab_supercell_sg.structure[n].specie))
+    molecules = []
+    for subgraph in super_subgraphs:
+        coords = [slab_supercell_sg.structure[n].coords
+                  for n in subgraph.nodes()]
+        # get the frac_cood of every atom for every molecules
+        coord_z_list = [slab_move.lattice.get_fractional_coords(coord)[-1] for coord in coords]
+        if down is True:
+            temp = [coord_z < 0.5 for coord_z in coord_z_list]
+        else:
+            temp = [coord_z > 0.5 for coord_z in coord_z_list]
+        if not all(temp) or len(coords) > 6:
+            continue
+        species = [slab_supercell_sg.structure[n].specie
+                   for n in subgraph.nodes()]
+        molecule = mg.Molecule(species=species, coords=coords)
+        molecules.append(molecule)
+    # molecules are the list of molecules that need to be moved
+    move_list = []
+    move_sites = reduced_sites(molecules, slab_move)
+    for move_site in move_sites:
+        for i, atom in enumerate(slab_move):
+            if atom.is_periodic_image(move_site):
+                move_list.append(i)
+                break
+    coords_move = slab_move.cart_coords
+    species_move = slab_move.species
+    slab_move.remove_sites(move_list)
+    for i in move_list:
+        if down is True:
+            new_coord = np.array(coords_move[i]) + np.array(delta)
+        else:
+            new_coord = np.array(coords_move[i]) - np.array(delta)
+        slab_move.append(species_move[i], new_coord, coords_are_cartesian=True)
+    return slab_move
+
+
+def Find_Broken_Molecules(slab, sg, species_intact, coords_intact, unique_bulk_subgraphs):
+    slab_sg = StructureGraph.with_local_env_strategy(slab, JmolNN())
+
+    # enlarge the cell to a (3 * 3 * 1) super_cell
+    slab_supercell_sg = slab_sg * (3, 3, 1)
+    different_subgraphs_in_slab, slab_molecules = \
+        get_slab_different_subgraphs(slab_supercell_sg, unique_bulk_subgraphs)
+    slab_molecules = double_screen(slab_molecules, sg)
+
+    # the molecules in slab_original would be the template
+    print("The number of molecules that need to be fixed : " + str(len(slab_molecules)))
+    # slab_molecules are the molecules that are broken and need to be fixed
+
+    delete_sites = reduced_sites(slab_molecules, slab)
+
+    # delete_list is the list of broken atoms
+    delete_list = []
+
+    for delete_site in delete_sites:
+        for i, atom in enumerate(slab):
+            if atom.is_periodic_image(delete_site):
+                delete_list.append(i)
+                break
+    species_all = slab.species
+    coords_all = slab.cart_coords
+    for i, atom in enumerate(slab):
+        temp = [i == delete for delete in delete_list]
+        if not any(temp):
+            species_intact.append(species_all[i])
+            coords_intact.append(coords_all[i])
+
+    delete_list = []
+    # remove intact molecules in the slab for convenience
+    print("Delete all atoms!")
+    for i, atom in enumerate(slab):
+        delete_list.append(i)
+    slab.remove_sites(delete_list)
+
+    sites = []
+    for slab_molecule in slab_molecules:
+        for curr_site in slab_molecule:
+            curr_site = mg.PeriodicSite(curr_site.specie,
+                                        curr_site.coords,
+                                        slab.lattice,
+                                        coords_are_cartesian=True)
+            tmp = [curr_site.is_periodic_image(site) for site in sites]
+            if not any(tmp):
+                sites.append(curr_site)
+    for site in sites:
+        # add the broken molecules into the system
+        # print("Add new atom from the broken parts")
+        slab.append(species=site.specie, coords=site.coords,
+                    coords_are_cartesian=True)
+    return slab
 
 
 def get_broken_molecules(self, bulk_subgraphs, use_weights=False):
@@ -502,13 +749,15 @@ def get_slab_different_subgraphs(slab_supercell_sg, unique_super_bulk_subgraphs)
                                   for u, v, d in subgraph.edges(data=True)])
         if not intersets_boundary:
             molecule_subgraphs.append(subgraph)
+
+    print("molecule_subgraphs : ", len(molecule_subgraphs))
     for subgraph in molecule_subgraphs:
         for n in subgraph:
             subgraph.add_node(n, specie=str(slab_supercell_sg.structure[n].specie))
 
     nm = iso.categorical_node_match("specie", "ERROR")
     different_subgraphs = []
-    for subgraph in molecule_subgraphs:
+    for subgraph in tqdm(molecule_subgraphs):
         already_present = [nx.is_isomorphic(subgraph, g,
                                             node_match=nm)
                            for g in unique_super_bulk_subgraphs]
