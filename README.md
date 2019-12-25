@@ -1,4 +1,4 @@
-# LatUnmatchIB
+# Ogre
 ## Basic Command
 Create organic interfaces:
 `python main.py --path test/organic/`
