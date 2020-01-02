@@ -1,31 +1,17 @@
-import numpy as np
 import math
 import pymatgen as mg
 from ase.utils import gcd, basestring
 from ase.build import bulk
 from copy import deepcopy
 from numpy.linalg import norm, solve
-import networkx as nx
-import networkx.algorithms.isomorphism as iso
-from networkx.readwrite import json_graph
-from networkx.drawing.nx_agraph import write_dot
 from pymatgen.analysis.graphs import *
-import ase
-from ase.spacegroup import crystal
-from ase.visualize import view
-from pymatgen.io.vasp.inputs import Poscar
 from pymatgen.core.structure import Molecule
-import os
 from pymatgen.core.sites import PeriodicSite
-from ase.lattice.surface import *
-from ase.io import *
 # used for deciding which atoms are bonded
 from pymatgen.analysis.local_env import JmolNN
-import configparser
 import os
 import sys
 import time
-from pymatgen.io.cif import CifWriter
 from tqdm import tqdm
 
 
@@ -376,8 +362,8 @@ def Find_Broken_Molecules(slab, sg, species_intact, coords_intact, unique_bulk_s
 
 
 def get_broken_molecules(self, bulk_subgraphs, use_weights=False):
-
-     ############compare each molecule in slab to each molecule in the bulk, get rid of isomorohic, molecules store the brokens #############
+    # compare each molecule in slab to each molecule in the bulk,
+    # get rid of isomorohic, molecules store the brokens
     """
     Retrieve broken_subgraphs as molecules
 
@@ -464,7 +450,7 @@ def get_broken_molecules(self, bulk_subgraphs, use_weights=False):
 
 
 def get_bulk_molecules(self, use_weights=False):
-    #########get rid of the repetitve molecule in bulk, only left with unique molecule######
+    # get rid of the repetitve molecule in bulk, only left with unique molecule######
     """
     Retrieve subgraphs as molecules, useful for extracting
     molecules from periodic crystals.
@@ -473,14 +459,18 @@ def get_bulk_molecules(self, use_weights=False):
     present in the crystal (a duplicate defined as an
     isomorphic subgraph).
 
-    :param use_weights (bool): If True, only treat subgraphs
-    as isomorphic if edges have the same weights. Typically,
-    this means molecules will need to have the same bond
-    lengths to be defined as duplicates, otherwise bond
-    lengths can differ. This is a fairly robust approach,
-    but will treat e.g. enantiomers as being duplicates.
+    :param
+    ------
+    use_weights: (bool) If True, only treat subgraphs
+        as isomorphic if edges have the same weights. Typically,
+        this means molecules will need to have the same bond
+        lengths to be defined as duplicates, otherwise bond
+        lengths can differ. This is a fairly robust approach,
+        but will treat e.g. enantiomers as being duplicates.
 
-    :return: list of unique Molecules in Structure
+    :return
+    -------
+    list of unique Molecules in Structure
     """
 
     # creating a supercell is an easy way to extract
@@ -1039,6 +1029,7 @@ def fix_broken_molecules(qualified_subgraphs,
                     coords_are_cartesian=True)
     return slab
 
+
 def put_everyatom_into_cell(slab):
     coords = slab.frac_coords
     for i in range(coords.shape[0]):
@@ -1066,12 +1057,13 @@ def put_everyatom_into_cell(slab):
 def timeTest(func):
     def clock(*args):
         working_dir = args[-1]
-        folder_files = working_dir.split('/')
-        test = False
-        for item in folder_files:
-            if 'test' in item:
-                test = True
-                break
+        # folder_files = working_dir.split('/')
+        # test = False
+        test = True
+        # for item in folder_files:
+        #     if 'test' in item:
+        #         test = True
+        #         break
         if test is True:
             t0 = time.perf_counter()
             result = func(*args)

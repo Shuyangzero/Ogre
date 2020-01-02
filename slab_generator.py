@@ -1,43 +1,9 @@
-import os
-from itertools import product
-import numpy as np
-import math
-from pymatgen.io.cif import CifWriter
-from ase.build import general_surface
-from ase.spacegroup import crystal
-from ase.visualize import view
-from ase.lattice.surface import *
-from ase.io import *
 from ase import io
-import pymatgen as mg
-from pymatgen.io.vasp.inputs import Poscar
-import argparse
-import pymatgen as mg
-from pymatgen.core.structure import Structure
-from pymatgen.io.vasp.inputs import Poscar
 from pymatgen.analysis.structure_matcher import StructureMatcher
-from pymatgen.core.surface import Slab, SlabGenerator, ReconstructionGenerator
-from pymatgen.analysis.substrate_analyzer import SubstrateAnalyzer, ZSLGenerator
 from utils.utils import *
-
-import networkx as nx
-import networkx.algorithms.isomorphism as iso
-from networkx.readwrite import json_graph
-from networkx.drawing.nx_agraph import write_dot
-from pymatgen.analysis.graphs import *
-import ase
-from ase.spacegroup import crystal
-from pymatgen.core.structure import Molecule
-import os
-from pymatgen.core.sites import PeriodicSite
+from pymatgen.io.vasp.inputs import Poscar
 from ase.lattice.surface import *
 from ase.io import *
-# used for deciding which atoms are bonded
-from pymatgen.analysis.local_env import JmolNN
-import configparser
-import sys
-import time
-from pymatgen.io.cif import CifWriter
 
 
 @timeTest
@@ -94,6 +60,7 @@ def inorganic_slab_generator(struc, miller_index, no_layers, vacuum, working_dir
 
 @timeTest
 def organic_slab_generator(struc, miller_index, no_layers, vacuum, working_dir):
+    tmp = None
     write(working_dir + 'bulk.POSCAR.vasp', struc, format="vasp")
     modify_poscar(working_dir + 'bulk.POSCAR.vasp')
     slab = surface(struc, miller_index, no_layers,
@@ -153,7 +120,8 @@ def organic_slab_generator(struc, miller_index, no_layers, vacuum, working_dir):
 
 @timeTest
 def repair_organic_slab_generator_graph(struc, miller_index,
-                                        no_layers, vacuum, working_dir):
+                                        no_layers, vacuum,
+                                        working_dir, super_cell=None):
     write(working_dir + '/bulk.POSCAR.vasp', struc, format="vasp")
     modify_poscar(working_dir + '/bulk.POSCAR.vasp')
     bulk = mg.Structure.from_file(working_dir + '/bulk.POSCAR.vasp')
@@ -230,15 +198,22 @@ def repair_organic_slab_generator_graph(struc, miller_index,
                                      bulk_structure_sg, slab_supercell_sg, slab,
                                      c_frac_min, fixed_c_negative=fix_c_negative)
     slab = put_everyatom_into_cell(slab)
-    # Poscar(slab.get_sorted_structure()).write_file('POSCAR.vasp')
-    # print("your POSCAR.vasp file has been successfully created under "
-    #       "current folder")
+    if super_cell is not None:
+        if super_cell[-1] != 1:
+            print("Warning: Please extend c direction by cleaving more layers "
+                  "rather than make supercell! The supercell is aotumatically "
+                  "set to [" + str(super_cell[0]) + ", " + str(super_cell[1]) + ", " +
+                  "1]!")
+        super_cell_copy = deepcopy(super_cell)
+        super_cell_copy[-1] = 1
+        slab.make_supercell(super_cell_copy)
     return [slab.get_sorted_structure()]
 
 
 @timeTest
 def repair_organic_slab_generator_move(struc, miller_index,
-                                       no_layers, vacuum, working_dir):
+                                       no_layers, vacuum, working_dir,
+                                       super_cell=None):
     write(working_dir + '/bulk.POSCAR.vasp', struc, format="vasp")
     modify_poscar(working_dir + '/bulk.POSCAR.vasp')
     bulk = mg.Structure.from_file(working_dir + '/bulk.POSCAR.vasp')
@@ -351,126 +326,16 @@ def repair_organic_slab_generator_move(struc, miller_index,
         modify_poscar(output_file)
         slab = mg.Structure.from_file(output_file)
         os.remove(output_file)
+        if super_cell is not None:
+            if super_cell[-1] != 1:
+                print("Warning: Please extend c direction by cleaving more layers "
+                      "rather than make supercell! The supercell is aotumatically "
+                      "set to [" + str(super_cell[0]) + ", " + str(super_cell[1]) + ", " +
+                      "1]!")
+            super_cell_copy = deepcopy(super_cell)
+            super_cell_copy[-1] = 1
+            slab.make_supercell(super_cell_copy)
         return [slab.get_sorted_structure()]
     except ValueError:
         print("The slab can not be reconstructed, please refer to ASE_surface.POSCAR.vasp "
               "or try the graph_repair method!")
-
-    # file_name = "ASE_surface.POSCAR.vasp"
-    # format_ = 'vasp'
-    # write(file_name, format=format_, images=slab)
-    # modify_poscar(file_name)
-
-    # slab, basis = surface_self_defined(struc, miller_index, layers=no_layers, vacuum=vacuum)
-    # print(basis)
-
-    # output_file = 'test_surface.POSCAR.vasp'
-    # format_ = 'vasp'
-    # write(output_file, format=format_, images=slab)
-    # modify_poscar(output_file)
-    # slab = mg.Structure.from_file(output_file)
-    # os.remove(output_file)
-    # slab_sg = StructureGraph.with_local_env_strategy(slab, JmolNN())
-    # slab_supercell_sg = slab_sg * (3, 3, 1)
-    # different_subgraphs_in_slab, slab_molecules = \
-    #     get_slab_different_subgraphs(slab_supercell_sg, unique_bulk_subgraphs)
-    # sg = super_structure_sg.get_subgraphs_as_molecules()
-    # slab_molecules = double_screen(slab_molecules, sg)
-    # # slab_molecules are the molecules that are broken and need to be fixed
-
-    # delete_sites = reduced_sites(slab_molecules, slab)
-    # delete_list = []
-
-    # for delete_site in delete_sites:
-    #     for i, atom in enumerate(slab):
-    #         if atom.is_periodic_image(delete_site):
-    #             delete_list.append(i)
-    #             break
-
-    # species_intact, coords_intact = [], []
-    # species_all = slab.species
-    # coords_all = slab.cart_coords
-    # for i, atom in enumerate(slab):
-    #     temp = [i == delete for delete in delete_list]
-    #     if not any(temp):
-    #         species_intact.append(species_all[i])
-    #         coords_intact.append(coords_all[i])
-
-    # delete_list = []
-    # # remove intact molecules in the slab for convenience
-    # for i, atom in enumerate(slab):
-    #     delete_list.append(i)
-    # slab.remove_sites(delete_list)
-
-    # sites = []
-    # for slab_molecule in slab_molecules:
-    #     for curr_site in slab_molecule:
-    #         curr_site = mg.PeriodicSite(curr_site.specie,
-    #                                     curr_site.coords,
-    #                                     slab.lattice,
-    #                                     coords_are_cartesian=True)
-    #         tmp = [curr_site.is_periodic_image(site) for site in sites]
-    #         if not any(tmp):
-    #             sites.append(curr_site)
-    # for site in sites:
-    #     slab.append(species=site.specie, coords=site.coords,
-    #                 coords_are_cartesian=True)
-
-    # slab = put_everyatom_into_cell(slab)
-    # speices = slab.species
-    # slab_coords = slab.frac_coords
-    # slab_coords_cart = slab.cart_coords
-    # remove_sites = []
-
-    # for i, coord in enumerate(slab_coords):
-    #     new_cart_coords = np.array(slab_coords_cart[i]) + \
-    #                       no_layers * (np.array(bulk.lattice.matrix[0, :] * basis[2, 0]) +
-    #                                    np.array(bulk.lattice.matrix[1, :] * basis[2, 1]) +
-    #                                    np.array(bulk.lattice.matrix[2, :] * basis[2, 2]))
-    #     slab.append(speices[i], coords=new_cart_coords, coords_are_cartesian=True)
-
-    # file_name = 'POSCAR_move.vasp'
-    # Poscar(slab.get_sorted_structure()).write_file(file_name)
-    # structure = read(file_name, format='vasp')
-
-    # slab = mg.Structure.from_file(file_name)
-    # os.remove(file_name)
-
-    # bulk_structure_sg = super_structure_sg * (3, 3, 3)
-    # unique_bulk_subgraphs, molecules = \
-    #     get_bulk_subgraphs(bulk_structure_sg)
-    # slab_sg = StructureGraph.with_local_env_strategy(slab, JmolNN())
-    # super_structure_sg = StructureGraph.with_local_env_strategy(bulk,
-    #                                                             JmolNN())
-
-    # slab_supercell_sg = slab_sg * (3, 3, 1)
-    # different_subgraphs_in_slab, slab_molecules = \
-    #     get_slab_different_subgraphs(slab_supercell_sg, unique_bulk_subgraphs)
-    # sg = super_structure_sg.get_subgraphs_as_molecules()
-    # slab_molecules = double_screen(slab_molecules, sg)
-    # # slab_molecules are the molecules that are broken and need to be fixed
-
-    # delete_sites = reduced_sites(slab_molecules, slab)
-    # delete_list = []
-
-    # for delete_site in delete_sites:
-    #     for i, atom in enumerate(slab):
-    #         if atom.is_periodic_image(delete_site):
-    #             delete_list.append(i)
-    #             break
-    # slab.remove_sites(delete_list)
-
-    # for i in range(len(species_intact)):
-    #     slab.append(species_intact[i], coords_intact[i], coords_are_cartesian=True)
-
-    # file_name = 'POSCAR_move.vasp'
-    # Poscar(slab.get_sorted_structure()).write_file(file_name)
-    # structure = read(file_name, format='vasp')
-    # os.remove(file_name)
-    # slab = modify_cell(structure)
-    # # slab = put_everyatom_into_cell(slab)
-    # output_file = "Orge_surface.POSCAR.vasp"
-    # write(output_file, format=format_, images=slab)
-    # modify_poscar(output_file)
-    # print("your Orge_surface.POSCAR.vasp file has been successfully created under "
-    #       "current folder")
