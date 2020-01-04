@@ -1,3 +1,5 @@
+import shutil
+
 from ase import io
 from pymatgen.analysis.structure_matcher import StructureMatcher
 from utils.utils import *
@@ -261,6 +263,10 @@ def repair_organic_slab_generator_move(struc, miller_index,
         slab = handle_with_molecules(slab, delta, down=False)
     except ValueError:
         print("No Broken molecules!")
+        shutil.copyfile("ASE_surface.POSCAR.vasp", "Orge_surface.POSCAR.vasp")
+        print("your Orge_surface.POSCAR.vasp file has been successfully created under "
+              "current folder")
+        sys.exit()
 
     Find_Broken_Molecules(slab, sg, species_intact, coords_intact, unique_bulk_subgraphs)
     try:
