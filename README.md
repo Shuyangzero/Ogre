@@ -9,4 +9,5 @@ This code might crash if you use the newest version of pymatgen, so please use t
 
 ## Example
 In example directory
+
 Run example.py to do test: python3 example.py
