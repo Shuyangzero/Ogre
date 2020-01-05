@@ -2,11 +2,10 @@ import shutil
 
 from ase import io
 from pymatgen.analysis.structure_matcher import StructureMatcher
-from utils.utils import *
 from pymatgen.io.vasp.inputs import Poscar
 from ase.lattice.surface import *
 from ase.io import *
-
+from .utils.utils import *
 
 @timeTest
 def inorganic_slab_generator(struc, miller_index, no_layers, vacuum, working_dir):
