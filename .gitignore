@@ -2,6 +2,6 @@
 tags
 .idea
 __pycache__
-.vscode/*
+.vscode
 utils/__pycache__
 example/*.vasp
