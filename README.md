@@ -12,5 +12,5 @@ This code might crash if you use the newest version of pymatgen, so please use t
 In example directory run example.py to do test: 
 
 ```bash
-python3 example.py
+python example.py
 ```
