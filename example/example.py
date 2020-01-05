@@ -3,7 +3,7 @@ import sys
 from ase.io import *
 from pymatgen.io.vasp.inputs import *
 sys.path.append('../')
-import slab_generator
+from ogre import slab_generator
 from pymatgen.io.vasp.inputs import Poscar
 
 struct = '~/Downloads/aspirin_form_1.POSCAR.vasp'
