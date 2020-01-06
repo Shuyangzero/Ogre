@@ -187,6 +187,9 @@ def repair_organic_slab_generator_graph(struc, miller_index,
     repair_organic_slab_generator_move. So, when move_method is not working,
     please try this method.
 
+    For example: Cleaving a miller index surface ([2, 3, 1]) with a number of
+    layers (1, 2, ...).
+
     Parameters
     ----------
     struc : Atoms structure or list of atoms structures
@@ -286,7 +289,13 @@ def repair_organic_slab_generator_move(struc, miller_index,
     """
     Repair the broken molecules by move_repair method. The idea is based on the
     periodicity of original bulk, and use the unchanged periodicity to repair those
-    broken molecoles
+    broken molecoles. Attention: This method might be not working well while cleaving
+    a high index miller surface with a small number of layer. However, a bigger number
+    of layers could assure that this method is working. Please try
+    repair_organic_slab_generator_graph once this method fails!
+
+    For example: Cleaving a low miller index ([2, 1, 1]) surface with an
+    appropriate number (3, 4 ...) of layer
 
     Parameters
     ----------
