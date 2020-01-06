@@ -119,7 +119,7 @@ def modify_poscar(file):
 
 
 # this is a self_build method for generating the universal surface
-def surface_self_defined(lattice, indices, layers, vacuum=None, tol=1e-10, termination=0):
+def surface_self_defined(lattice, indices, layers, tol=1e-10, termination=0):
     """Create surface from a given lattice and Miller indices.
 
     lattice: Atoms object or str
@@ -131,8 +131,6 @@ def surface_self_defined(lattice, indices, layers, vacuum=None, tol=1e-10, termi
         Surface normal in Miller indices (h,k,l).
     layers: int
         Number of equivalent layers of the slab.
-    vacuum: float
-        Amount of vacuum added on both sides of the slab.
     termination: int
         The termination "number" for your crystal. The same value will not
         produce the same termination for different symetrically identical

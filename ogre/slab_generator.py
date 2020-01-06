@@ -1,14 +1,34 @@
-import shutil
-
 from ase import io
+from ase.io import *
+from ase.lattice.surface import *
 from pymatgen.analysis.structure_matcher import StructureMatcher
 from pymatgen.io.vasp.inputs import Poscar
-from ase.lattice.surface import *
-from ase.io import *
+
 from .utils.utils import *
 
+
 @timeTest
-def inorganic_slab_generator(struc, miller_index, no_layers, vacuum, working_dir):
+def inorganic_slab_generator(struc, miller_index, no_layers, vacuum, working_dir,
+                             super_cell):
+    """
+    Generate inorganic surface by using ase library.
+
+    Parameters
+    ----------
+    struc : Atoms structure or list of atoms structures
+        The original bulk structure.
+    miller_index : list of int, [h, k, l]
+        The Miller Index of target surface.
+    no_layers : int
+        Number of surface's layers.
+    vacuum : double
+        Height of vacuum layer, unit: Angstrom. Notice that the vacuum layer
+        would be added to both the bottom and the top of surface.
+    working_dir : string
+        The path of original bulk's file.
+    super_cell : list of int, [a, b, 1]
+        Make a (a * b * 1) supercell.
+    """
     surfaces_list = []
     run = True
     term = 0
@@ -55,12 +75,40 @@ def inorganic_slab_generator(struc, miller_index, no_layers, vacuum, working_dir
     match = StructureMatcher(ltol=tol, stol=tol, primitive_cell=False,
                              scale=False)
     new_slabs = [g[0] for g in match.group_structures(new_slabs)]
-
+    if super_cell is not None:
+        if super_cell[-1] != 1:
+            print("Warning: Please extend c direction by cleaving more layers "
+                  "rather than make supercell! The supercell is aotumatically "
+                  "set to [" + str(super_cell[0]) + ", " + str(super_cell[1]) + ", " +
+                  "1]!")
+        super_cell_copy = deepcopy(super_cell)
+        super_cell_copy[-1] = 1
+        new_slabs = [slab.make_supercell(super_cell_copy) for slab in new_slabs]
     return new_slabs
 
 
 @timeTest
-def organic_slab_generator(struc, miller_index, no_layers, vacuum, working_dir):
+def organic_slab_generator(struc, miller_index, no_layers, vacuum, working_dir,
+                           super_cell):
+    """
+    Generate organic surface by deleting all those broken molecules.
+
+    Parameters
+    ----------
+    struc : Atoms structure or list of atoms structures
+        The original bulk structure.
+    miller_index : list of int, [h, k, l]
+        The Miller Index of target surface.
+    no_layers : int
+        Number of surface's layers.
+    vacuum : double
+        Height of vacuum layer, unit: Angstrom. Notice that the vacuum layer
+        would be added to both the bottom and the top of surface.
+    working_dir : string
+        The path of original bulk's file.
+    super_cell : list of int, [a, b, 1]
+        Make a (a * b * 1) supercell.
+    """
     tmp = None
     write(working_dir + 'bulk.POSCAR.vasp', struc, format="vasp")
     modify_poscar(working_dir + 'bulk.POSCAR.vasp')
@@ -115,14 +163,46 @@ def organic_slab_generator(struc, miller_index, no_layers, vacuum, working_dir):
                 delete_list.append(i)
                 break
     slab.remove_sites(delete_list)
-
-    return [slab]
+    if super_cell is not None:
+        if super_cell[-1] != 1:
+            print("Warning: Please extend c direction by cleaving more layers "
+                  "rather than make supercell! The supercell is aotumatically "
+                  "set to [" + str(super_cell[0]) + ", " + str(super_cell[1]) + ", " +
+                  "1]!")
+        super_cell_copy = deepcopy(super_cell)
+        super_cell_copy[-1] = 1
+        slab.make_supercell(super_cell_copy)
+    return [slab.get_sorted_structure()]
 
 
 @timeTest
 def repair_organic_slab_generator_graph(struc, miller_index,
                                         no_layers, vacuum,
                                         working_dir, super_cell=None):
+    """
+    Repair the broken molecules by graph_repair method. The basic idea is
+    finding the corresponding intact molecules and then replacing those broken
+    molecules with the intact molecules. This is an alternative method to repair
+    broken molecules since it has less restrictions than
+    repair_organic_slab_generator_move. So, when move_method is not working,
+    please try this method.
+
+    Parameters
+    ----------
+    struc : Atoms structure or list of atoms structures
+        The original bulk structure.
+    miller_index : list of int, [h, k, l]
+        The Miller Index of target surface.
+    no_layers : int
+        Number of surface's layers.
+    vacuum : double
+        Height of vacuum layer, unit: Angstrom. Notice that the vacuum layer
+        would be added to both the bottom and the top of surface.
+    working_dir : string
+        The path of original bulk's file.
+    super_cell : list of int, [a, b, 1]
+        Make a (a * b * 1) supercell.
+    """
     write(working_dir + '/bulk.POSCAR.vasp', struc, format="vasp")
     modify_poscar(working_dir + '/bulk.POSCAR.vasp')
     bulk = mg.Structure.from_file(working_dir + '/bulk.POSCAR.vasp')
@@ -132,13 +212,10 @@ def repair_organic_slab_generator_graph(struc, miller_index,
     unique_bulk_subgraphs, molecules = \
         get_bulk_subgraphs(bulk_structure_sg)
     print("There would be {} different molecules in bulk".format(str(len(molecules))))
-    # get the slab via ase and deal with it via pymatgen
     slab = surface(struc, miller_index, layers=no_layers, vacuum=vacuum)
     output_file = working_dir + '/slab_original.POSCAR.vasp'
     format_ = 'vasp'
     write(output_file, format=format_, images=slab)
-    # if format_ == 'vasp':
-    #     updatePOSCAR(output_file)
     modify_poscar(output_file)
     slab = mg.Structure.from_file(output_file)
     os.remove(output_file)
@@ -149,8 +226,6 @@ def repair_organic_slab_generator_graph(struc, miller_index,
         get_slab_different_subgraphs(slab_supercell_sg, unique_bulk_subgraphs)
     sg = super_structure_sg.get_subgraphs_as_molecules()
     slab_molecules = double_screen(slab_molecules, sg)
-    # slab_molecules are the molecules that are broken and need to be fixed
-
     new_different_subgraphs = []
     less_new_different_subgraphs = []
     for subgraph in different_subgraphs_in_slab:
@@ -184,13 +259,6 @@ def repair_organic_slab_generator_graph(struc, miller_index,
                 delete_list.append(i)
                 break
     slab.remove_sites(delete_list)
-    # c_frac_min = 0
-    # try:
-    #     c_fracs = np.array(slab.frac_coords[:, 2])
-    #     c_frac_min = min(c_fracs)
-    #     fix_c_negative = False
-    # except IndexError:
-    #     fix_c_negative = True
     fix_c_negative = False
     slab = fix_broken_molecules(broken_subgraphs, intact_subgraphs,
                                 bulk_structure_sg, slab_supercell_sg, slab,
@@ -215,6 +283,27 @@ def repair_organic_slab_generator_graph(struc, miller_index,
 def repair_organic_slab_generator_move(struc, miller_index,
                                        no_layers, vacuum, working_dir,
                                        super_cell=None):
+    """
+    Repair the broken molecules by move_repair method. The idea is based on the
+    periodicity of original bulk, and use the unchanged periodicity to repair those
+    broken molecoles
+
+    Parameters
+    ----------
+    struc : Atoms structure or list of atoms structures
+        The original bulk structure.
+    miller_index : list of int, [h, k, l]
+        The Miller Index of target surface.
+    no_layers : int
+        Number of surface's layers.
+    vacuum : double
+        Height of vacuum layer, unit: Angstrom. Notice that the vacuum layer
+        would be added to both the bottom and the top of surface.
+    working_dir : string
+        The path of original bulk's file.
+    super_cell : list of int, [a, b, 1]
+        Make a (a * b * 1) supercell.
+    """
     write(working_dir + '/bulk.POSCAR.vasp', struc, format="vasp")
     modify_poscar(working_dir + '/bulk.POSCAR.vasp')
     bulk = mg.Structure.from_file(working_dir + '/bulk.POSCAR.vasp')
@@ -233,7 +322,7 @@ def repair_organic_slab_generator_move(struc, miller_index,
     modify_poscar(file_name)
     # attention! the slab is assigned to a new object
 
-    slab = surface_self_defined(struc, miller_index, layers=no_layers, vacuum=vacuum)
+    slab = surface_self_defined(struc, miller_index, layers=no_layers)
     delta = np.array(slab.cell)[2, :]
     if vacuum is not None:
         slab.center(vacuum=vacuum, axis=2)
@@ -245,8 +334,6 @@ def repair_organic_slab_generator_move(struc, miller_index,
     os.remove(file_name)
     slab_move = handle_with_molecules(slab_move, delta, down=True)
     Poscar(slab_move.get_sorted_structure()).write_file("AlreadyMove.POSCAR.vasp")
-    # os.remove("AlreadyMove.POSCAR.vasp")
-
     # delete intact molecule in slab_move
     slab = slab_move
     species_intact, coords_intact = [], []
@@ -255,7 +342,6 @@ def repair_organic_slab_generator_move(struc, miller_index,
                                                                 JmolNN())
     sg = super_structure_sg.get_subgraphs_as_molecules()
     Find_Broken_Molecules(slab, sg, species_intact, coords_intact, unique_bulk_subgraphs)
-
     # find the broken molecules for the first minor movement and delete the intact molecules
     try:
         slab = put_everyatom_into_cell(slab)
@@ -263,6 +349,7 @@ def repair_organic_slab_generator_move(struc, miller_index,
         os.remove("POSCAR_Broken.POSCAR.vasp")
         slab = handle_with_molecules(slab, delta, down=False)
     except ValueError:
+        # No broken molecules anymore. So, return the slab_move
         slab_move = io.read("AlreadyMove.POSCAR.vasp")
         os.remove("AlreadyMove.POSCAR.vasp")
         slab_move = modify_cell(slab_move)
@@ -316,7 +403,6 @@ def repair_organic_slab_generator_move(struc, miller_index,
     speices = slab.species
     slab_coords = slab.frac_coords
     slab_coords_cart = slab.cart_coords
-    # remove_sites = []
 
     for i, coord in enumerate(slab_coords):
         new_cart_coords = np.array(slab_coords_cart[i]) + delta

@@ -11,5 +11,5 @@ setup(
     # find_packages(exclude=[]),
     install_requires=['numpy', 'matplotlib', 'pymatgen==2019.6.5',
                       'networkx==2.3', 'tqdm',
-                      "ase @ https://gitlab.com/ase/tarball/master"],
+                      "ase @ https://gitlab.com/ase/tarball/master", 'ase'],
 )
