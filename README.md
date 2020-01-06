@@ -4,7 +4,7 @@ Ogre is written in Python 3 and uses  the  ase, and  pymatgen libraries.   The  
 ```bash
 python setup.py install
 ```
-This code might crash if you use the newest version of pymatgen, so please use the version specified in requirements.txt
+This code might crash if you use the newest version of pymatgen, so please use the version specified in setup.py
 
 ## Example
 In example directory run example.py: 
