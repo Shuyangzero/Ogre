@@ -12,7 +12,7 @@ This code might crash if you use the newest version of pymatgen, so please use t
 
 For import paths to work correctly, do
 ```bash
-conda source init.sh
+source init.sh
 ```
 
 To cleave the surface, do

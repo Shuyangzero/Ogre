@@ -323,7 +323,7 @@ def repair_organic_slab_generator_move(struc, miller_index,
     # get the slab via ase and deal with it via pymatgen
     os.remove(working_dir + '/bulk.POSCAR.vasp')
     slab = surface(struc, miller_index, layers=no_layers, vacuum=vacuum)
-    file_name = "ASE_surface.POSCAR.vasp"
+    file_name = working_dir + "/ASE_surface.POSCAR.vasp"
     format_ = 'vasp'
     write(file_name, format=format_, images=slab)
     modify_poscar(file_name)
@@ -334,13 +334,13 @@ def repair_organic_slab_generator_move(struc, miller_index,
     if vacuum is not None:
         slab.center(vacuum=vacuum, axis=2)
 
-    file_name = 'slab_before.POSCAR.vasp'
+    file_name = working_dir + '/slab_before.POSCAR.vasp'
     write(file_name, format=format_, images=slab)
     modify_poscar(file_name)
     slab_move = mg.Structure.from_file(file_name)
     os.remove(file_name)
     slab_move = handle_with_molecules(slab_move, delta, down=True)
-    Poscar(slab_move.get_sorted_structure()).write_file("AlreadyMove.POSCAR.vasp")
+    Poscar(slab_move.get_sorted_structure()).write_file(working_dir + "/AlreadyMove.POSCAR.vasp")
     # delete intact molecule in slab_move
     slab = slab_move
     species_intact, coords_intact = [], []
@@ -352,16 +352,16 @@ def repair_organic_slab_generator_move(struc, miller_index,
     # find the broken molecules for the first minor movement and delete the intact molecules
     try:
         slab = put_everyatom_into_cell(slab)
-        Poscar(slab.get_sorted_structure()).write_file("POSCAR_Broken.POSCAR.vasp")
-        os.remove("POSCAR_Broken.POSCAR.vasp")
+        Poscar(slab.get_sorted_structure()).write_file(working_dir + "/POSCAR_Broken.POSCAR.vasp")
+        os.remove(working_dir + "/POSCAR_Broken.POSCAR.vasp")
         slab = handle_with_molecules(slab, delta, down=False)
     except ValueError:
         # No broken molecules anymore. So, return the slab_move
-        slab_move = io.read("AlreadyMove.POSCAR.vasp")
-        os.remove("AlreadyMove.POSCAR.vasp")
+        slab_move = read(working_dir + "/AlreadyMove.POSCAR.vasp")
+        os.remove(working_dir + "/AlreadyMove.POSCAR.vasp")
         slab_move = modify_cell(slab_move)
-        temp_file_name = "temp.POSCAR.vasp"
-        io.write(temp_file_name, slab_move)
+        temp_file_name = working_dir + "/temp.POSCAR.vasp"
+        write(temp_file_name, slab_move)
         modify_poscar(temp_file_name)
         slab_move = mg.Structure.from_file(temp_file_name)
         os.remove(temp_file_name)
@@ -376,22 +376,22 @@ def repair_organic_slab_generator_move(struc, miller_index,
             super_cell_copy[-1] = 1
             slab_move.make_supercell(super_cell_copy)
         return [slab_move.get_sorted_structure()]
-    os.remove("AlreadyMove.POSCAR.vasp")
+    os.remove(working_dir + "/AlreadyMove.POSCAR.vasp")
 
     Find_Broken_Molecules(slab, sg, species_intact, coords_intact, unique_bulk_subgraphs)
     try:
         slab = put_everyatom_into_cell(slab)
-        Poscar(slab.get_sorted_structure()).write_file("POSCAR_Broken_two.POSCAR.vasp")
-        os.remove("POSCAR_Broken_two.POSCAR.vasp")
+        Poscar(slab.get_sorted_structure()).write_file(working_dir + "/POSCAR_Broken_two.POSCAR.vasp")
+        os.remove(working_dir + "/POSCAR_Broken_two.POSCAR.vasp")
     except ValueError:
         for i in range(len(species_intact)):
             slab.append(species_intact[i], coords_intact[i], coords_are_cartesian=True)
-        temp_file_name = "temp.POSCAR.vasp"
+        temp_file_name = working_dir + "/temp.POSCAR.vasp"
         Poscar(slab.get_sorted_structure()).write_file(temp_file_name)
-        slab = io.read(temp_file_name)
+        slab = read(temp_file_name)
         os.remove(temp_file_name)
         slab = modify_cell(slab)
-        io.write(temp_file_name, slab)
+        write(temp_file_name, slab)
         modify_poscar(temp_file_name)
         slab = mg.Structure.from_file(temp_file_name)
         os.remove(temp_file_name)
@@ -417,7 +417,7 @@ def repair_organic_slab_generator_move(struc, miller_index,
         slab.append(speices[i], coords=new_cart_coords, coords_are_cartesian=True)
 
     try:
-        file_name = 'POSCAR_move.vasp'
+        file_name = working_dir + '/POSCAR_move.vasp'
         Poscar(slab.get_sorted_structure()).write_file(file_name)
         slab = mg.Structure.from_file(file_name)
         os.remove(file_name)
@@ -451,14 +451,16 @@ def repair_organic_slab_generator_move(struc, miller_index,
     for i in range(len(species_intact)):
         slab.append(species_intact[i], coords_intact[i], coords_are_cartesian=True)
 
-    file_name = 'POSCAR_move_final.vasp'
+    file_name = working_dir + "/POSCAR_move_final.vasp"
+
+    os.remove(working_dir + "/ASE_surface.POSCAR.vasp")
     try:
         Poscar(slab.get_sorted_structure()).write_file(file_name)
         structure = read(file_name, format=format_)
         os.remove(file_name)
         slab = modify_cell(structure)
-        output_file = "Orge_surface.POSCAR.vasp"
-        io.write(output_file, slab, format=format_)
+        output_file = working_dir + "/Orge_surface.POSCAR.vasp"
+        write(output_file, slab, format=format_)
         modify_poscar(output_file)
         slab = mg.Structure.from_file(output_file)
         os.remove(output_file)
@@ -475,3 +477,4 @@ def repair_organic_slab_generator_move(struc, miller_index,
     except ValueError:
         print("The slab can not be reconstructed, please refer to ASE_surface.POSCAR.vasp "
               "or try the graph_repair method!")
+    
