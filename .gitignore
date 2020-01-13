@@ -4,7 +4,7 @@ tags
 __pycache__
 .vscode
 utils/__pycache__
-example/*.vasp
 build
 dist
 *.egg-info
+ogre/
