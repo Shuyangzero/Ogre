@@ -1,5 +1,4 @@
-from ase import io
-from ase.io import *
+from ase.io import read, write
 from ase.lattice.surface import *
 from pymatgen.analysis.structure_matcher import StructureMatcher
 from pymatgen.io.vasp.inputs import Poscar
