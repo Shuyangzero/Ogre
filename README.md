@@ -9,8 +9,21 @@ python setup.py install
 This code might crash if you use the newest version of pymatgen, so please use the version specified in setup.py
 
 ## Example
-In example directory run example.py: 
+
+For import paths to work correctly, do
+```bash
+conda source init.sh
+```
+
+To cleave the surface, do
 
 ```bash
-python example.py
+cd ogre
+python cleave.py
+```
+
+To generate the input slabs for surface energy calculations, do
+```bash
+cd ogre
+python surface_energy_calculation.py
 ```
