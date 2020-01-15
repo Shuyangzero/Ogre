@@ -420,6 +420,8 @@ def repair_organic_slab_generator_move(struc, miller_index,
         slab.append(speices[i], coords=new_cart_coords, coords_are_cartesian=True)
 
     try:
+        for i in range(len(species_intact)):
+            slab.append(species_intact[i], coords_intact[i], coords_are_cartesian=True)
         file_name = working_dir + '/POSCAR_move.vasp'
         Poscar(slab.get_sorted_structure()).write_file(file_name)
         slab = mg.Structure.from_file(file_name)
@@ -451,8 +453,8 @@ def repair_organic_slab_generator_move(struc, miller_index,
     except ValueError:
         print("No Broken molecules!")
 
-    for i in range(len(species_intact)):
-        slab.append(species_intact[i], coords_intact[i], coords_are_cartesian=True)
+    # for i in range(len(species_intact)):
+    #     slab.append(species_intact[i], coords_intact[i], coords_are_cartesian=True)
 
     file_name = working_dir + "/POSCAR_move_final.vasp"
     os.remove(working_dir + "/ASE_surface.POSCAR.vasp")
