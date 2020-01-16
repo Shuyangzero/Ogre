@@ -672,6 +672,8 @@ def get_bulk_subgraphs(bulk_structure_sg):
                               specie=str(bulk_structure_sg.structure[n].specie))
     unique_super_subgraphs = []
     for subgraph in super_subgraphs:
+        if len(subgraph) <= 1:
+            continue
         already_present = [nx.is_isomorphic(subgraph, g,
                                             node_match=node_match,
                                             edge_match=edge_match)

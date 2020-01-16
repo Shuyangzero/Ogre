@@ -225,7 +225,8 @@ def repair_organic_slab_generator_graph(struc, miller_index,
     slab_supercell_sg = slab_sg * (3, 3, 1)
     different_subgraphs_in_slab, slab_molecules = \
         get_slab_different_subgraphs(slab_supercell_sg, unique_bulk_subgraphs)
-    sg = super_structure_sg.get_subgraphs_as_molecules()
+    # sg = super_structure_sg.get_subgraphs_as_molecules()
+    sg = molecules
     slab_molecules = double_screen(slab_molecules, sg)
     new_different_subgraphs = []
     less_new_different_subgraphs = []
@@ -346,9 +347,10 @@ def repair_organic_slab_generator_move(struc, miller_index,
     slab = slab_move
     species_intact, coords_intact = [], []
     # os.remove(output_file)
-    super_structure_sg = StructureGraph.with_local_env_strategy(bulk,
-                                                                JmolNN())
-    sg = super_structure_sg.get_subgraphs_as_molecules()
+    # super_structure_sg = StructureGraph.with_local_env_strategy(bulk,
+    #                                                             JmolNN())
+    # sg = super_structure_sg.get_subgraphs_as_molecules()
+    sg = molecules
     Find_Broken_Molecules(slab, sg, species_intact, coords_intact, unique_bulk_subgraphs)
     # find the broken molecules for the first minor movement and delete the intact molecules
     try:
@@ -420,8 +422,8 @@ def repair_organic_slab_generator_move(struc, miller_index,
         slab.append(speices[i], coords=new_cart_coords, coords_are_cartesian=True)
 
     try:
-        for i in range(len(species_intact)):
-            slab.append(species_intact[i], coords_intact[i], coords_are_cartesian=True)
+        # for i in range(len(species_intact)):
+        #     slab.append(species_intact[i], coords_intact[i], coords_are_cartesian=True)
         file_name = working_dir + '/POSCAR_move.vasp'
         Poscar(slab.get_sorted_structure()).write_file(file_name)
         slab = mg.Structure.from_file(file_name)
@@ -437,7 +439,8 @@ def repair_organic_slab_generator_move(struc, miller_index,
         slab_supercell_sg = slab_sg * (3, 3, 1)
         different_subgraphs_in_slab, slab_molecules = \
             get_slab_different_subgraphs(slab_supercell_sg, unique_bulk_subgraphs)
-        sg = super_structure_sg.get_subgraphs_as_molecules()
+        # sg = super_structure_sg.get_subgraphs_as_molecules()
+        sg = molecules
         slab_molecules = double_screen(slab_molecules, sg)
         print("The number of molecules that need to be fixed : ", len(slab_molecules))
         # slab_molecules are the molecules that are broken and need to be fixed
@@ -453,8 +456,8 @@ def repair_organic_slab_generator_move(struc, miller_index,
     except ValueError:
         print("No Broken molecules!")
 
-    # for i in range(len(species_intact)):
-    #     slab.append(species_intact[i], coords_intact[i], coords_are_cartesian=True)
+    for i in range(len(species_intact)):
+        slab.append(species_intact[i], coords_intact[i], coords_are_cartesian=True)
 
     file_name = working_dir + "/POSCAR_move_final.vasp"
     os.remove(working_dir + "/ASE_surface.POSCAR.vasp")
