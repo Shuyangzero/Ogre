@@ -211,7 +211,7 @@ def repair_organic_slab_generator_graph(struc, miller_index,
                                                                 JmolNN())
     bulk_structure_sg = super_structure_sg * (3, 3, 3)
     unique_bulk_subgraphs, molecules = \
-        get_bulk_subgraphs(bulk_structure_sg)
+        get_bulk_subgraphs_unique(bulk_structure_sg)
     print("There would be {} different molecules in bulk".format(str(len(molecules))))
     slab = surface(struc, miller_index, layers=no_layers, vacuum=vacuum)
     output_file = working_dir + '/slab_original.POSCAR.vasp'
@@ -282,9 +282,9 @@ def repair_organic_slab_generator_graph(struc, miller_index,
 
 
 @timeTest
-def repair_organic_slab_generator_move(struc, miller_index,
-                                       no_layers, vacuum, working_dir,
-                                       super_cell=None):
+def repair_organic_slab_generator_move_onelayer(struc, miller_index,
+                                                no_layers, vacuum, working_dir,
+                                                super_cell=None):
     """
     Repair the broken molecules by move_repair method. The idea is based on the
     periodicity of original bulk, and use the unchanged periodicity to repair those
@@ -319,7 +319,7 @@ def repair_organic_slab_generator_move(struc, miller_index,
                                                                 JmolNN())
     bulk_structure_sg = super_structure_sg * (3, 3, 3)
     unique_bulk_subgraphs, molecules = \
-        get_bulk_subgraphs(bulk_structure_sg)
+        get_bulk_subgraphs_unique(bulk_structure_sg)
     print("There would be {} different molecules in bulk".format(str(len(molecules))))
     # get the slab via ase and deal with it via pymatgen
     os.remove(working_dir + '/bulk.POSCAR.vasp')
@@ -331,10 +331,11 @@ def repair_organic_slab_generator_move(struc, miller_index,
     slab_temp = mg.Structure.from_file(file_name)
     # attention! the slab is assigned to a new object
 
-    slab = surface_self_defined(struc, miller_index, layers=no_layers)
+    virtual_layers = 4
+    slab = surface_self_defined(struc, miller_index, layers=virtual_layers)
     delta = np.array(slab.cell)[2, :]
-    if vacuum is not None:
-        slab.center(vacuum=1000, axis=2)
+    # if vacuum is not None:
+    slab.center(vacuum=1000, axis=2)
 
     file_name = working_dir + '/slab_before.POSCAR.vasp'
     write(file_name, format=format_, images=slab)
@@ -360,25 +361,26 @@ def repair_organic_slab_generator_move(struc, miller_index,
         slab = handle_with_molecules(slab, delta, down=False)
     except ValueError:
         # No broken molecules anymore. So, return the slab_move
-        slab_move = read(working_dir + "/AlreadyMove.POSCAR.vasp")
-        slab_move.center(vacuum=vacuum, axis=2)
+        slab_move = get_one_layer(slab_move, layers_virtual=virtual_layers)
+        # slab_move = read(working_dir + "/AlreadyMove.POSCAR.vasp")
+        # slab_move.center(vacuum=vacuum, axis=2)
         os.remove(working_dir + "/AlreadyMove.POSCAR.vasp")
-        slab_move = modify_cell(slab_move)
+        # slab_move = modify_cell(slab_move)
         temp_file_name = working_dir + "/temp.POSCAR.vasp"
         write(temp_file_name, slab_move)
         modify_poscar(temp_file_name)
         slab_move = mg.Structure.from_file(temp_file_name)
         os.remove(temp_file_name)
         print("No Broken molecules!")
-        if super_cell is not None:
-            if super_cell[-1] != 1:
-                print("Warning: Please extend c direction by cleaving more layers "
-                      "rather than make supercell! The supercell is aotumatically "
-                      "set to [" + str(super_cell[0]) + ", " + str(super_cell[1]) + ", " +
-                      "1]!")
-            super_cell_copy = deepcopy(super_cell)
-            super_cell_copy[-1] = 1
-            slab_move.make_supercell(super_cell_copy)
+        # if super_cell is not None:
+        #     if super_cell[-1] != 1:
+        #         print("Warning: Please extend c direction by cleaving more layers "
+        #               "rather than make supercell! The supercell is aotumatically "
+        #               "set to [" + str(super_cell[0]) + ", " + str(super_cell[1]) + ", " +
+        #               "1]!")
+        #     super_cell_copy = deepcopy(super_cell)
+        #     super_cell_copy[-1] = 1
+        #     slab_move.make_supercell(super_cell_copy)
         return [slab_move.get_sorted_structure()]
     os.remove(working_dir + "/AlreadyMove.POSCAR.vasp")
 
@@ -390,26 +392,33 @@ def repair_organic_slab_generator_move(struc, miller_index,
     except ValueError:
         for i in range(len(species_intact)):
             slab.append(species_intact[i], coords_intact[i], coords_are_cartesian=True)
+        slab = get_one_layer(slab, virtual_layers)
         temp_file_name = working_dir + "/temp.POSCAR.vasp"
-        Poscar(slab.get_sorted_structure()).write_file(temp_file_name)
-        slab = read(temp_file_name)
-        slab.center(vacuum=vacuum, axis=2)
-        os.remove(temp_file_name)
-        slab = modify_cell(slab)
         write(temp_file_name, slab)
         modify_poscar(temp_file_name)
         slab = mg.Structure.from_file(temp_file_name)
         os.remove(temp_file_name)
         print("No Broken molecules!")
-        if super_cell is not None:
-            if super_cell[-1] != 1:
-                print("Warning: Please extend c direction by cleaving more layers "
-                      "rather than make supercell! The supercell is aotumatically "
-                      "set to [" + str(super_cell[0]) + ", " + str(super_cell[1]) + ", " +
-                      "1]!")
-            super_cell_copy = deepcopy(super_cell)
-            super_cell_copy[-1] = 1
-            slab.make_supercell(super_cell_copy)
+        # temp_file_name = working_dir + "/temp.POSCAR.vasp"
+        # Poscar(slab.get_sorted_structure()).write_file(temp_file_name)
+        # slab = read(temp_file_name)
+        # slab.center(vacuum=vacuum, axis=2)
+        # os.remove(temp_file_name)
+        # slab = modify_cell(slab)
+        # write(temp_file_name, slab)
+        # modify_poscar(temp_file_name)
+        # slab = mg.Structure.from_file(temp_file_name)
+        # os.remove(temp_file_name)
+        # print("No Broken molecules!")
+        # if super_cell is not None:
+        #     if super_cell[-1] != 1:
+        #         print("Warning: Please extend c direction by cleaving more layers "
+        #               "rather than make supercell! The supercell is aotumatically "
+        #               "set to [" + str(super_cell[0]) + ", " + str(super_cell[1]) + ", " +
+        #               "1]!")
+        #     super_cell_copy = deepcopy(super_cell)
+        #     super_cell_copy[-1] = 1
+        #     slab.make_supercell(super_cell_copy)
         return [slab.get_sorted_structure()]
 
     speices = slab.species
@@ -434,7 +443,7 @@ def repair_organic_slab_generator_move(struc, miller_index,
                                                                     JmolNN())
         bulk_structure_sg = super_structure_sg * (3, 3, 3)
         unique_bulk_subgraphs, molecules = \
-            get_bulk_subgraphs(bulk_structure_sg)
+            get_bulk_subgraphs_unique(bulk_structure_sg)
 
         slab_supercell_sg = slab_sg * (3, 3, 1)
         different_subgraphs_in_slab, slab_molecules = \
@@ -462,36 +471,68 @@ def repair_organic_slab_generator_move(struc, miller_index,
     file_name = working_dir + "/POSCAR_move_final.vasp"
     os.remove(working_dir + "/ASE_surface.POSCAR.vasp")
     try:
-        Poscar(slab.get_sorted_structure()).write_file(file_name)
-        structure = read(file_name, format=format_)
-        structure.center(vacuum=vacuum, axis=2)
-        os.remove(file_name)
-        slab = modify_cell(structure)
+        slab = get_one_layer(slab, virtual_layers)
         output_file = working_dir + "/Orge_surface.POSCAR.vasp"
-        write(output_file, slab, format=format_)
+        write(output_file, slab)
         modify_poscar(output_file)
         slab = mg.Structure.from_file(output_file)
         os.remove(output_file)
-        if super_cell is not None:
-            if super_cell[-1] != 1:
-                print("Warning: Please extend c direction by cleaving more layers "
-                      "rather than make supercell! The supercell is aotumatically "
-                      "set to [" + str(super_cell[0]) + ", " + str(super_cell[1]) + ", " +
-                      "1]!")
-            super_cell_copy = deepcopy(super_cell)
-            super_cell_copy[-1] = 1
-            slab.make_supercell(super_cell_copy)
+        # Poscar(slab.get_sorted_structure()).write_file(file_name)
+        # structure = read(file_name, format=format_)
+        # structure.center(vacuum=vacuum, axis=2)
+        # os.remove(file_name)
+        # slab = modify_cell(structure)
+        # output_file = working_dir + "/Orge_surface.POSCAR.vasp"
+        # write(output_file, slab, format=format_)
+        # modify_poscar(output_file)
+        # slab = mg.Structure.from_file(output_file)
+        # os.remove(output_file)
+        # if super_cell is not None:
+        #     if super_cell[-1] != 1:
+        #         print("Warning: Please extend c direction by cleaving more layers "
+        #               "rather than make supercell! The supercell is aotumatically "
+        #               "set to [" + str(super_cell[0]) + ", " + str(super_cell[1]) + ", " +
+        #               "1]!")
+        #     super_cell_copy = deepcopy(super_cell)
+        #     super_cell_copy[-1] = 1
+        #     slab.make_supercell(super_cell_copy)
         return [slab.get_sorted_structure()]
     except ValueError:
         print("The {} slab with {} layers can not be reconstructed. And the result refers to ASE's surfaces. Please "
               "try the graph_repair method!".format(miller_index, no_layers))
-        if super_cell is not None:
-            if super_cell[-1] != 1:
-                print("Warning: Please extend c direction by cleaving more layers "
-                      "rather than make supercell! The supercell is aotumatically "
-                      "set to [" + str(super_cell[0]) + ", " + str(super_cell[1]) + ", " +
-                      "1]!")
-            super_cell_copy = deepcopy(super_cell)
-            super_cell_copy[-1] = 1
-            slab_temp.make_supercell(super_cell_copy)
+        # if super_cell is not None:
+        #     if super_cell[-1] != 1:
+        #         print("Warning: Please extend c direction by cleaving more layers "
+        #               "rather than make supercell! The supercell is aotumatically "
+        #               "set to [" + str(super_cell[0]) + ", " + str(super_cell[1]) + ", " +
+        #               "1]!")
+        #     super_cell_copy = deepcopy(super_cell)
+        #     super_cell_copy[-1] = 1
+        #     slab_temp.make_supercell(super_cell_copy)
         return [slab_temp.get_sorted_structure()]
+
+
+def change_layers_and_supercell(slab, no_layers, vacuum, working_dir, super_cell=None):
+    slab_one_layer_incline = deepcopy(slab)
+    file_name = working_dir + "/one_layer.POSCAR.vasp"
+    Poscar(slab_one_layer_incline.get_sorted_structure()).write_file(file_name)
+    slab_one_layer_incline = read(file_name)
+    os.remove(file_name)
+    slab_several_layers = slab_one_layer_incline * (1, 1, no_layers)
+    if vacuum is not None:
+        slab_several_layers.center(vacuum=vacuum, axis=2)
+    slab_several_layers = modify_cell(slab_several_layers)
+    write(file_name, images=slab_several_layers)
+    modify_poscar(file_name)
+    slab_several_layers = mg.Structure.from_file(file_name)
+    os.remove(file_name)
+    if super_cell is not None:
+        if super_cell[-1] != 1:
+            print("Warning: Please extend c direction by cleaving more layers "
+                  "rather than make supercell! The supercell is aotumatically "
+                  "set to [" + str(super_cell[0]) + ", " + str(super_cell[1]) + ", " +
+                  "1]!")
+        super_cell_copy = deepcopy(super_cell)
+        super_cell_copy[-1] = 1
+        slab_several_layers.make_supercell(super_cell_copy)
+    return [slab_several_layers.get_sorted_structure()]

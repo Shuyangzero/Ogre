@@ -6,6 +6,8 @@ from copy import deepcopy
 from numpy.linalg import norm, solve
 from pymatgen.analysis.graphs import *
 from pymatgen.core.structure import Molecule
+from pymatgen.io.vasp.inputs import Poscar
+from ase import io
 from pymatgen.core.sites import PeriodicSite
 # used for deciding which atoms are bonded
 from pymatgen.analysis.local_env import JmolNN
@@ -641,6 +643,89 @@ def edge_match(e1, e2):
 
 
 def get_bulk_subgraphs(bulk_structure_sg):
+    bulk_super_structure_sg_graph = nx.Graph(bulk_structure_sg.graph)
+    all_super_subgraphs = list(nx.connected_component_subgraphs
+                               (bulk_super_structure_sg_graph))
+    super_subgraphs = []
+    for subgraph in all_super_subgraphs:
+        in_boundary = any([d['to_jimage'] == (0, 0, 0)
+                           for u, v, d in subgraph.edges(data=True)])
+        if in_boundary:
+            super_subgraphs.append(subgraph)
+    for subgraph in super_subgraphs:
+        for n in subgraph:
+            subgraph.add_node(n,
+                              specie=str(bulk_structure_sg.structure[n].specie))
+    for subgraph in super_subgraphs:
+        if len(subgraph) == 1 and "H" in [str(bulk_structure_sg.structure[n].specie) for n in subgraph.nodes()]:
+            super_subgraphs.remove(subgraph)
+            continue
+    molecules = []
+    for subgraph in super_subgraphs:
+        coords = [bulk_structure_sg.structure[n].coords
+                  for n in subgraph.nodes()]
+        species = [bulk_structure_sg.structure[n].specie
+                   for n in subgraph.nodes()]
+        molecule = mg.Molecule(species=species, coords=coords)
+        molecules.append(molecule)
+    return super_subgraphs, molecules
+
+
+def get_one_layer(slab, layers_virtual):
+    slab_incline = deepcopy(slab)
+    slab_incline = put_everyatom_into_cell(slab_incline)
+    super_structure_sg = StructureGraph.with_local_env_strategy(slab_incline,
+                                                                JmolNN())
+    bulk_structure_sg = super_structure_sg * (1, 1, 1)
+    super_subgraphs, molecules = get_bulk_subgraphs(bulk_structure_sg)
+    account_list = [0] * len(super_subgraphs)
+    for index_one in range(len(super_subgraphs) - 1):
+        for index_two in range(index_one + 1, len(super_subgraphs)):
+            if nx.is_isomorphic(super_subgraphs[index_one], super_subgraphs[index_two],
+                                node_match=node_match):
+                species_one = molecules[index_one].species
+                coords_one = slab_incline.lattice.get_fractional_coords(molecules[index_one].cart_coords)
+                species_two = molecules[index_two].species
+                coords_two = slab_incline.lattice.get_fractional_coords(molecules[index_two].cart_coords)
+
+                account = 0
+                for item_a, coord_a in enumerate(coords_one):
+                    for item_b, coord_b in enumerate(coords_two):
+                        if species_one[item_a] == species_two[item_b] and abs(coord_a[0] - coord_b[0]) <= 1e-4 and abs(
+                                coord_a[1] - coord_b[1]) <= 1e-4:
+                            if coord_a[2] < coord_b[2]:
+                                account += 1
+                                break
+                            else:
+                                account -= 1
+                                break
+
+                if account >= 0.5 * len(coords_one):
+                    account_list[index_one] += 1
+                elif account <= - 0.5 * len(coords_two):
+                    account_list[index_two] += 1
+    slab_molecules = [molecule for item, molecule in enumerate(molecules) if account_list[item] != layers_virtual - 1]
+    delete_sites = reduced_sites(slab_molecules, slab_incline)
+    delete_list = []
+
+    for delete_site in delete_sites:
+        for i, atom in enumerate(slab_incline):
+            if atom.is_periodic_image(delete_site):
+                delete_list.append(i)
+                break
+    slab_incline.remove_sites(delete_list)
+    file_name = 'one_layer.POSCAR.vasp'
+    Poscar(slab_incline.get_sorted_structure()).write_file(file_name)
+
+    # find the structure, next we need to find the periodicity
+    format_ = 'vasp'
+    structure = io.read(file_name, format=format_)
+    os.remove(file_name)
+    structure.center(vacuum=0, axis=2)
+    return structure
+
+
+def get_bulk_subgraphs_unique(bulk_structure_sg):
     """get unique subgraphs of bulk based on graph algorithm.
         This function would only return unique molecules and its graphs,
         but not any duplicates present in the crystal.
@@ -672,7 +757,7 @@ def get_bulk_subgraphs(bulk_structure_sg):
                               specie=str(bulk_structure_sg.structure[n].specie))
     unique_super_subgraphs = []
     for subgraph in super_subgraphs:
-        if len(subgraph) <= 1:
+        if len(subgraph) == 1 and "H" in [str(bulk_structure_sg.structure[n].specie) for n in subgraph.nodes()]:
             continue
         already_present = [nx.is_isomorphic(subgraph, g,
                                             node_match=node_match,
