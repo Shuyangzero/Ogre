@@ -1306,3 +1306,113 @@ def less_fix_broken_molecules(less_broken_subgraphs, less_intact_subgraphs,
         slab.append(species=site.specie, coords=site.coords,
                     coords_are_cartesian=True)
     return slab
+
+
+def move_molecule(molecules, slab, delta):
+    coords = slab.cart_coords
+    species = slab.species
+    delete_sites = reduced_sites(molecules, slab)
+    delete_list = []
+
+    for delete_site in delete_sites:
+        for i, atom in enumerate(slab):
+            if atom.is_periodic_image(delete_site):
+                delete_list.append(i)
+                break
+    slab.remove_sites(delete_list)
+
+    for i in delete_list:
+        new_coord = np.array(coords[i]) - np.array(delta)
+        slab.append(species[i], new_coord, coords_are_cartesian=True)
+    return slab
+
+
+def double_find_the_gap(little_gap, big_gap, gaps, users_define_layers, tol):
+    if abs(big_gap - little_gap) < tol:
+        return -1
+    medium_gap = 0.5 * (little_gap + big_gap)
+    qualified = np.sum([medium_gap < gap for gap in gaps])
+    if qualified > users_define_layers - 1:
+        return double_find_the_gap(medium_gap, big_gap, gaps, users_define_layers, tol)
+    elif qualified < users_define_layers - 1:
+        return double_find_the_gap(little_gap, medium_gap, gaps, users_define_layers, tol)
+    else:
+        return medium_gap
+
+
+def different_single_layer(one_layer_slab, users_define_layers=None):
+    """
+        In order to give out more possible surfaces, this function would analyze
+        any one layer structure and give out a list of possible one layer structure
+        based on the atoms exposed.
+
+        For example: Cleaving a low miller index ([2, 1, 1]) surface with an
+        appropriate number (3, 4 ...) of layer
+
+        Parameters
+        ----------
+        one_layer_slab : Atoms structure or list of atoms structures
+            The structure for any one layer surface.
+        users_define_layers : int
+            The number of the sub-layers that one layer might have. "None" is
+            the default option, in which every molecule would be regarded
+            as a sub-layer
+        """
+    file_name = "one_layer_temp.POSCAR.vasp"
+    Poscar(one_layer_slab.get_sorted_structure()).write_file(file_name)
+    one_layer_temp = io.read(file_name)
+    os.remove(file_name)
+    one_layer_temp.center(vacuum=0, axis=2)
+    delta = np.array(one_layer_temp.cell)[2, :]
+    one_layer_temp.center(vacuum=100, axis=2)
+    file_name = "one_layer_temp.POSCAR.vasp"
+    io.write(file_name, images=one_layer_temp)
+    modify_poscar(file_name)
+    one_layer = mg.Structure.from_file(file_name)
+    os.remove(file_name)
+    one_layer = put_everyatom_into_cell(one_layer)
+    one_layer_sg = StructureGraph.with_local_env_strategy(one_layer, JmolNN())
+    bulk_sg = one_layer_sg * (1, 1, 1)
+    subgraphs, molecules = get_bulk_subgraphs(bulk_structure_sg=bulk_sg)
+    highest_z_locations = [np.max(np.array(one_layer.lattice.get_fractional_coords(molecule.cart_coords))[:, 2])
+                           for molecule in molecules]
+    highest_species = [
+        str(molecule.species[np.argmax(np.array(one_layer.lattice.get_fractional_coords(molecule.cart_coords))[:,
+                                       2])]) for molecule in molecules]
+
+    [highest_z_locations, highest_species, molecules] = list(
+        zip(*(sorted(zip(highest_z_locations, highest_species, molecules), key=lambda a: a[0], reverse=True))))
+
+    gaps = [highest_z_locations[i] - highest_z_locations[i + 1] for i in range(len(highest_species) - 1)]
+
+    small_gap, big_gap = 0, 1
+    if users_define_layers is None:
+        users_define_layers = len(molecules)
+
+    medium_gap = double_find_the_gap(small_gap, big_gap, gaps, users_define_layers, 1e-4)
+    if medium_gap != -1:
+        qualified = [medium_gap < gap for gap in gaps]
+    else:
+        qualified = [1] * len(gaps)
+
+    slab_list = [one_layer]
+
+    one_layer_temp = deepcopy(one_layer)
+    highes_specie = [highest_species[0]]
+    for index, molecule in enumerate(molecules[: -1]):
+        if qualified[index] == 1 and highest_species[index + 1] not in highes_specie:
+            one_layer_temp_two = move_molecule(molecules[: index + 1], one_layer_temp, delta)
+            slab_list.append(one_layer_temp_two)
+            highes_specie.append(highest_species[index + 1])
+
+    for index, slab in enumerate(slab_list):
+        file_name = "primitive_onelayer_" + str(index) + ".POSCAR.vasp"
+        Poscar(slab.get_sorted_structure()).write_file(file_name)
+        slab_temp = io.read(file_name)
+        os.remove(file_name)
+        slab_temp.center(vacuum=0, axis=2)
+        io.write(file_name, images=slab_temp)
+        modify_poscar(file_name)
+        slab_list[index] = mg.Structure.from_file(file_name)
+        os.remove(file_name)
+    return slab_list

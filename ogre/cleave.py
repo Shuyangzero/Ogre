@@ -2,6 +2,7 @@ import os
 from ase.io import read
 from ogre import slab_generator
 from pymatgen.io.vasp.inputs import Poscar
+from ogre.utils.utils import different_single_layer
 
 struct = '../example_POSCARs/PENCEN.POSCAR.vasp'
 struct_ase = read(struct)
@@ -16,10 +17,14 @@ slab_one_layer_list = slab_generator.repair_organic_slab_generator_move_onelayer
                                                                                  layers, vacuum,
                                                                                  working_dir, None)
 # Poscar(slab_one_layer_list[0]).write_file("one_layer_incline.POSCAR.vasp").
+slab_one_layer = slab_one_layer_list[0]
+different_one_layer_list = different_single_layer(slab_one_layer, users_define_layers=None)
+
 # Change one layer structure to "layers" layers structure, add vacuum, and build
 # the super cell.
-slab_list = slab_generator.change_layers_and_supercell(slab_one_layer_list[0],
+slab_list = slab_generator.change_layers_and_supercell(different_one_layer_list,
                                                        layers, vacuum, working_dir,
                                                        super_cell=None)
 
-Poscar(slab_list[0]).write_file("Ogre_Surface.POSCAR.vasp")
+for index, slab in enumerate(slab_list):
+    Poscar(slab).write_file("Ogre_Surface_" + str(index) + ".POSCAR.vasp")

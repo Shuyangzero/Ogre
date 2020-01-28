@@ -512,27 +512,31 @@ def repair_organic_slab_generator_move_onelayer(struc, miller_index,
         return [slab_temp.get_sorted_structure()]
 
 
-def change_layers_and_supercell(slab, no_layers, vacuum, working_dir, super_cell=None):
-    slab_one_layer_incline = deepcopy(slab)
-    file_name = working_dir + "/one_layer.POSCAR.vasp"
-    Poscar(slab_one_layer_incline.get_sorted_structure()).write_file(file_name)
-    slab_one_layer_incline = read(file_name)
-    os.remove(file_name)
-    slab_several_layers = slab_one_layer_incline * (1, 1, no_layers)
-    if vacuum is not None:
-        slab_several_layers.center(vacuum=vacuum, axis=2)
-    slab_several_layers = modify_cell(slab_several_layers)
-    write(file_name, images=slab_several_layers)
-    modify_poscar(file_name)
-    slab_several_layers = mg.Structure.from_file(file_name)
-    os.remove(file_name)
-    if super_cell is not None:
-        if super_cell[-1] != 1:
-            print("Warning: Please extend c direction by cleaving more layers "
-                  "rather than make supercell! The supercell is aotumatically "
-                  "set to [" + str(super_cell[0]) + ", " + str(super_cell[1]) + ", " +
-                  "1]!")
-        super_cell_copy = deepcopy(super_cell)
-        super_cell_copy[-1] = 1
-        slab_several_layers.make_supercell(super_cell_copy)
-    return [slab_several_layers.get_sorted_structure()]
+def change_layers_and_supercell(slab_list, no_layers, vacuum, working_dir, super_cell=None):
+    surface_list = []
+    slab_list = list(slab_list)
+    for slab in slab_list:
+        slab_one_layer_incline = deepcopy(slab)
+        file_name = working_dir + "/one_layer.POSCAR.vasp"
+        Poscar(slab_one_layer_incline.get_sorted_structure()).write_file(file_name)
+        slab_one_layer_incline = read(file_name)
+        os.remove(file_name)
+        slab_several_layers = slab_one_layer_incline * (1, 1, no_layers)
+        if vacuum is not None:
+            slab_several_layers.center(vacuum=vacuum, axis=2)
+        slab_several_layers = modify_cell(slab_several_layers)
+        write(file_name, images=slab_several_layers)
+        modify_poscar(file_name)
+        slab_several_layers = mg.Structure.from_file(file_name)
+        os.remove(file_name)
+        if super_cell is not None:
+            if super_cell[-1] != 1:
+                print("Warning: Please extend c direction by cleaving more layers "
+                      "rather than make supercell! The supercell is aotumatically "
+                      "set to [" + str(super_cell[0]) + ", " + str(super_cell[1]) + ", " +
+                      "1]!")
+            super_cell_copy = deepcopy(super_cell)
+            super_cell_copy[-1] = 1
+            slab_several_layers.make_supercell(super_cell_copy)
+        surface_list.append(slab_several_layers.get_sorted_structure())
+    return surface_list
