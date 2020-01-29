@@ -1405,12 +1405,18 @@ def different_single_layer(one_layer_slab, users_define_layers=None):
             slab_list.append(one_layer_temp_two)
             highes_specie.append(highest_species[index + 1])
 
+    slab_temp_list = []
     for index, slab in enumerate(slab_list):
         file_name = "primitive_onelayer_" + str(index) + ".POSCAR.vasp"
         Poscar(slab.get_sorted_structure()).write_file(file_name)
         slab_temp = io.read(file_name)
         os.remove(file_name)
         slab_temp.center(vacuum=0, axis=2)
+        slab_temp_list.append(slab_temp)
+
+    for index, slab_temp in enumerate(slab_temp_list):
+        file_name = "primitive_onelayer_" + str(index) + ".POSCAR.vasp"
+        slab_temp.set_cell(slab_temp_list[0].cell)
         io.write(file_name, images=slab_temp)
         modify_poscar(file_name)
         slab_list[index] = mg.Structure.from_file(file_name)
