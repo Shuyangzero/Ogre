@@ -512,7 +512,9 @@ def repair_organic_slab_generator_move_onelayer(struc, miller_index,
         return [slab_temp.get_sorted_structure()]
 
 
-def change_layers_and_supercell(slab_list, no_layers, vacuum, working_dir, super_cell=None):
+def change_layers_and_supercell(slab_list, no_layers,
+                                vacuum, working_dir, super_cell=None,
+                                c_perpendicular=True):
     surface_list = []
     slab_list = list(slab_list)
     for slab in slab_list:
@@ -524,7 +526,8 @@ def change_layers_and_supercell(slab_list, no_layers, vacuum, working_dir, super
         slab_several_layers = slab_one_layer_incline * (1, 1, no_layers)
         if vacuum is not None:
             slab_several_layers.center(vacuum=vacuum, axis=2)
-        slab_several_layers = modify_cell(slab_several_layers)
+        if c_perpendicular is True:
+            slab_several_layers = modify_cell(slab_several_layers)
         write(file_name, images=slab_several_layers)
         modify_poscar(file_name)
         slab_several_layers = mg.Structure.from_file(file_name)

@@ -1340,7 +1340,7 @@ def double_find_the_gap(little_gap, big_gap, gaps, users_define_layers, tol):
         return medium_gap
 
 
-def different_single_layer(one_layer_slab, users_define_layers=None):
+def different_single_layer(one_layer_slab, users_define_layers=None, delta_move=None):
     """
         In order to give out more possible surfaces, this function would analyze
         any one layer structure and give out a list of possible one layer structure
@@ -1357,14 +1357,20 @@ def different_single_layer(one_layer_slab, users_define_layers=None):
             The number of the sub-layers that one layer might have. "None" is
             the default option, in which every molecule would be regarded
             as a sub-layer
+        delta_move : list of double
+            [delta_x, delta_y, delta_z], the moving distance of a sub-layer
         """
     file_name = "one_layer_temp.POSCAR.vasp"
     Poscar(one_layer_slab.get_sorted_structure()).write_file(file_name)
     one_layer_temp = io.read(file_name)
     os.remove(file_name)
     one_layer_temp.center(vacuum=0, axis=2)
-    delta = np.array(one_layer_temp.cell)[2, :]
-    one_layer_temp.center(vacuum=100, axis=2)
+    cell = deepcopy(one_layer_temp.cell)
+    if delta_move is None:
+        delta = np.array(one_layer_temp.cell)[2, :]
+    else:
+        delta = delta_move
+    one_layer_temp.center(vacuum=1000, axis=2)
     file_name = "one_layer_temp.POSCAR.vasp"
     io.write(file_name, images=one_layer_temp)
     modify_poscar(file_name)
@@ -1416,9 +1422,40 @@ def different_single_layer(one_layer_slab, users_define_layers=None):
 
     for index, slab_temp in enumerate(slab_temp_list):
         file_name = "primitive_onelayer_" + str(index) + ".POSCAR.vasp"
-        slab_temp.set_cell(slab_temp_list[0].cell)
+        slab_temp.set_cell(cell)
         io.write(file_name, images=slab_temp)
         modify_poscar(file_name)
         slab_list[index] = mg.Structure.from_file(file_name)
         os.remove(file_name)
     return slab_list
+
+
+def different_target_surfaces(target_surface, vacuum, working_dir, delta_move=None,
+                              super_cell=None, users_define_layers=None, c_perpendicular=True):
+    slab_list = different_single_layer(target_surface, users_define_layers, delta_move=delta_move)
+    surface_list = []
+    for slab in slab_list:
+        slab_one_surface = deepcopy(slab)
+        file_name = working_dir + "/one_layer.POSCAR.vasp"
+        Poscar(slab_one_surface.get_sorted_structure()).write_file(file_name)
+        slab_one_surface = io.read(file_name)
+        os.remove(file_name)
+        if vacuum is not None:
+            slab_one_surface.center(vacuum=vacuum, axis=2)
+        if c_perpendicular is True:
+            slab_one_surface = modify_cell(slab_one_surface)
+        io.write(file_name, images=slab_one_surface)
+        modify_poscar(file_name)
+        slab_one_surface = mg.Structure.from_file(file_name)
+        os.remove(file_name)
+        if super_cell is not None:
+            if super_cell[-1] != 1:
+                print("Warning: Please extend c direction by cleaving more layers "
+                      "rather than make supercell! The supercell is aotumatically "
+                      "set to [" + str(super_cell[0]) + ", " + str(super_cell[1]) + ", " +
+                      "1]!")
+            super_cell_copy = deepcopy(super_cell)
+            super_cell_copy[-1] = 1
+            slab_one_surface.make_supercell(super_cell_copy)
+        surface_list.append(slab_one_surface.get_sorted_structure())
+    return surface_list
