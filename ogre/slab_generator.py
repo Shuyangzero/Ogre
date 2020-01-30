@@ -1,8 +1,11 @@
 from ase.io import read, write
-from ase.lattice.surface import *
+from ase.build import surface
 from pymatgen.analysis.structure_matcher import StructureMatcher
 from pymatgen.io.vasp.inputs import Poscar
 from ogre.utils.utils import *
+from ogre.utils.unique_planes import UniquePlanes
+from multiprocessing import Pool
+import shutil
 
 
 @timeTest
@@ -534,3 +537,63 @@ def orgslab_generator(struct_ase, miller_index,
                                                   c_perpendicular=True)
             no_layers_slablist.append(slab_list)
     return no_layers_slablist
+
+def task(name, struc, miller_index, layers, vacuum,
+         super_cell):
+    """
+    Multiprocess task to cleave multiple planes with different layers.
+    Parameters
+    ----------
+    name: File nam to save.
+    struc : Atoms structure or list of atoms structures
+        The original bulk structure.
+    miller_index : list of int, [h, k, l]
+        The Miller Index of target surface.
+    layers : a list of layer to cleave.
+    vacuum : double
+        Height of vacuum layer, unit: Angstrom. Notice that the vacuum layer
+        would be added to both the bottom and the top of surface.
+    working_dir : string
+        The path of original bulk's file.
+    super_cell : list of int, [a, b, 1]
+        Make a (a * b * 1) supercell.
+    """
+
+    # Create working directory to isolate the workflow
+    dir_name = '{}_{}'.format(name, "".join(str(int(x))
+                                               for x in miller_index))
+    if not os.path.isdir(dir_name):
+        os.mkdir(dir_name)
+    working_dir = os.path.abspath('./{}'.format(dir_name))
+
+
+    print("start {}".format("".join(str(int(x))
+                                       for x in miller_index)))
+
+    slab_lists = orgslab_generator(struc, miller_index, layers,
+                                             vacuum, working_dir, super_cell,
+                                             users_defind_layers=None,
+                                             based_on_onelayer=True)
+
+    for layer, slab_list in zip(layers, slab_lists):
+        for i, slab in enumerate(slab_list):
+            poscar_str = "output/POSCAR.{}.{}.{}.{}".format(name, "".join(str(int(x))
+                                                               for x in miller_index), layer, i)
+            Poscar(slab).write_file(poscar_str)
+            slab_ase = read(poscar_str)
+            os.remove(poscar_str)
+            write("output/{}.{}.{}.{}.in".format(name, "".join(str(int(x))
+                                                    for x in miller_index), layer, i), slab_ase)
+    shutil.rmtree(working_dir)
+
+def cleave(struc_path, name, vacuum, layers, highest_index=2):
+        bulk = read(struc_path)
+        if not os.path.isdir("output"):
+            os.mkdir("output")
+        up = UniquePlanes(bulk, index=highest_index, verbose=False)
+        p = Pool()
+        print("{} unique planes are found".format(len(up.unique_idx)))
+        for miller_index in up.unique_idx:
+            p.apply_async(task, args=(name, bulk, miller_index, layers, vacuum, None,))
+        p.close()
+        p.join()
