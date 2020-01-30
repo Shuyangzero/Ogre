@@ -282,9 +282,7 @@ def repair_organic_slab_generator_graph(struc, miller_index,
 
 
 @timeTest
-def repair_organic_slab_generator_move_onelayer(struc, miller_index,
-                                                no_layers, vacuum, working_dir,
-                                                super_cell=None):
+def orgslab_onelayer_generator(struc, miller_index, working_dir):
     """
     Repair the broken molecules by move_repair method. The idea is based on the
     periodicity of original bulk, and use the unchanged periodicity to repair those
@@ -302,15 +300,8 @@ def repair_organic_slab_generator_move_onelayer(struc, miller_index,
         The original bulk structure.
     miller_index : list of int, [h, k, l]
         The Miller Index of target surface.
-    no_layers : int
-        Number of surface's layers.
-    vacuum : double
-        Height of vacuum layer, unit: Angstrom. Notice that the vacuum layer
-        would be added to both the bottom and the top of surface.
     working_dir : string
         The path of original bulk's file.
-    super_cell : list of int, [a, b, 1]
-        Make a (a * b * 1) supercell.
     """
     write(working_dir + '/bulk.POSCAR.vasp', struc, format="vasp")
     modify_poscar(working_dir + '/bulk.POSCAR.vasp')
@@ -323,7 +314,7 @@ def repair_organic_slab_generator_move_onelayer(struc, miller_index,
     print("There would be {} different molecules in bulk".format(str(len(molecules))))
     # get the slab via ase and deal with it via pymatgen
     os.remove(working_dir + '/bulk.POSCAR.vasp')
-    slab = surface(struc, miller_index, layers=no_layers, vacuum=vacuum)
+    slab = surface(struc, miller_index, layers=1, vacuum=0)
     file_name = working_dir + "/ASE_surface.POSCAR.vasp"
     format_ = 'vasp'
     write(file_name, format=format_, images=slab)
@@ -348,9 +339,6 @@ def repair_organic_slab_generator_move_onelayer(struc, miller_index,
     slab = slab_move
     species_intact, coords_intact = [], []
     # os.remove(output_file)
-    # super_structure_sg = StructureGraph.with_local_env_strategy(bulk,
-    #                                                             JmolNN())
-    # sg = super_structure_sg.get_subgraphs_as_molecules()
     sg = molecules
     Find_Broken_Molecules(slab, sg, species_intact, coords_intact, unique_bulk_subgraphs)
     # find the broken molecules for the first minor movement and delete the intact molecules
@@ -362,25 +350,13 @@ def repair_organic_slab_generator_move_onelayer(struc, miller_index,
     except ValueError:
         # No broken molecules anymore. So, return the slab_move
         slab_move = get_one_layer(slab_move, layers_virtual=virtual_layers)
-        # slab_move = read(working_dir + "/AlreadyMove.POSCAR.vasp")
-        # slab_move.center(vacuum=vacuum, axis=2)
         os.remove(working_dir + "/AlreadyMove.POSCAR.vasp")
-        # slab_move = modify_cell(slab_move)
         temp_file_name = working_dir + "/temp.POSCAR.vasp"
         write(temp_file_name, slab_move)
         modify_poscar(temp_file_name)
         slab_move = mg.Structure.from_file(temp_file_name)
         os.remove(temp_file_name)
         print("No Broken molecules!")
-        # if super_cell is not None:
-        #     if super_cell[-1] != 1:
-        #         print("Warning: Please extend c direction by cleaving more layers "
-        #               "rather than make supercell! The supercell is aotumatically "
-        #               "set to [" + str(super_cell[0]) + ", " + str(super_cell[1]) + ", " +
-        #               "1]!")
-        #     super_cell_copy = deepcopy(super_cell)
-        #     super_cell_copy[-1] = 1
-        #     slab_move.make_supercell(super_cell_copy)
         return [slab_move.get_sorted_structure()]
     os.remove(working_dir + "/AlreadyMove.POSCAR.vasp")
 
@@ -399,26 +375,6 @@ def repair_organic_slab_generator_move_onelayer(struc, miller_index,
         slab = mg.Structure.from_file(temp_file_name)
         os.remove(temp_file_name)
         print("No Broken molecules!")
-        # temp_file_name = working_dir + "/temp.POSCAR.vasp"
-        # Poscar(slab.get_sorted_structure()).write_file(temp_file_name)
-        # slab = read(temp_file_name)
-        # slab.center(vacuum=vacuum, axis=2)
-        # os.remove(temp_file_name)
-        # slab = modify_cell(slab)
-        # write(temp_file_name, slab)
-        # modify_poscar(temp_file_name)
-        # slab = mg.Structure.from_file(temp_file_name)
-        # os.remove(temp_file_name)
-        # print("No Broken molecules!")
-        # if super_cell is not None:
-        #     if super_cell[-1] != 1:
-        #         print("Warning: Please extend c direction by cleaving more layers "
-        #               "rather than make supercell! The supercell is aotumatically "
-        #               "set to [" + str(super_cell[0]) + ", " + str(super_cell[1]) + ", " +
-        #               "1]!")
-        #     super_cell_copy = deepcopy(super_cell)
-        #     super_cell_copy[-1] = 1
-        #     slab.make_supercell(super_cell_copy)
         return [slab.get_sorted_structure()]
 
     speices = slab.species
@@ -477,44 +433,16 @@ def repair_organic_slab_generator_move_onelayer(struc, miller_index,
         modify_poscar(output_file)
         slab = mg.Structure.from_file(output_file)
         os.remove(output_file)
-        # Poscar(slab.get_sorted_structure()).write_file(file_name)
-        # structure = read(file_name, format=format_)
-        # structure.center(vacuum=vacuum, axis=2)
-        # os.remove(file_name)
-        # slab = modify_cell(structure)
-        # output_file = working_dir + "/Orge_surface.POSCAR.vasp"
-        # write(output_file, slab, format=format_)
-        # modify_poscar(output_file)
-        # slab = mg.Structure.from_file(output_file)
-        # os.remove(output_file)
-        # if super_cell is not None:
-        #     if super_cell[-1] != 1:
-        #         print("Warning: Please extend c direction by cleaving more layers "
-        #               "rather than make supercell! The supercell is aotumatically "
-        #               "set to [" + str(super_cell[0]) + ", " + str(super_cell[1]) + ", " +
-        #               "1]!")
-        #     super_cell_copy = deepcopy(super_cell)
-        #     super_cell_copy[-1] = 1
-        #     slab.make_supercell(super_cell_copy)
         return [slab.get_sorted_structure()]
     except ValueError:
         print("The {} slab with {} layers can not be reconstructed. And the result refers to ASE's surfaces. Please "
-              "try the graph_repair method!".format(miller_index, no_layers))
-        # if super_cell is not None:
-        #     if super_cell[-1] != 1:
-        #         print("Warning: Please extend c direction by cleaving more layers "
-        #               "rather than make supercell! The supercell is aotumatically "
-        #               "set to [" + str(super_cell[0]) + ", " + str(super_cell[1]) + ", " +
-        #               "1]!")
-        #     super_cell_copy = deepcopy(super_cell)
-        #     super_cell_copy[-1] = 1
-        #     slab_temp.make_supercell(super_cell_copy)
+              "try the graph_repair method!".format(miller_index, 1))
         return [slab_temp.get_sorted_structure()]
 
 
-def change_layers_and_supercell(slab_list, no_layers,
-                                vacuum, working_dir, super_cell=None,
-                                c_perpendicular=True):
+def targetslab_generator(slab_list, no_layers, vacuum,
+                         working_dir, super_cell=None,
+                         c_perpendicular=True):
     surface_list = []
     slab_list = list(slab_list)
     for slab in slab_list:
@@ -543,3 +471,66 @@ def change_layers_and_supercell(slab_list, no_layers,
             slab_several_layers.make_supercell(super_cell_copy)
         surface_list.append(slab_several_layers.get_sorted_structure())
     return surface_list
+
+
+def orgslab_generator(struct_ase, miller_index,
+                      no_layers, vacuum, working_dir,
+                      super_cell=None, users_defind_layers=None,
+                      based_on_onelayer=True):
+    """
+    Repair the broken molecules by move_repair method. The idea is based on the
+    periodicity of original bulk, and use the unchanged periodicity to repair those
+    broken molecoles.
+
+    For example: Cleave a miller index ([2, 1, 1]) surface with (1, 2, 3, ...)
+    layers and a 15 Angstrom vacuum layer
+
+    Parameters
+    ----------
+    struct_ase : Atoms structure or list of atoms structures
+        The original bulk structure.
+    miller_index : list of int, [h, k, l]
+        The Miller Index of target surface.
+    no_layers : int
+        Number of surface's layers.
+    vacuum : double
+        Height of vacuum layer, unit: Angstrom. Notice that the vacuum layer
+        would be added to both the bottom and the top of surface.
+    working_dir : string
+        The path of original bulk's file.
+    super_cell : list of int, [a, b, 1]
+        Make a (a * b * 1) supercell.
+    users_defind_layers : int
+        The number of the sub-layers that one layer might have. "None" is
+        the default option, in which every molecule would be regarded
+        as a sub-layer
+    based_on_onelayer : bool
+        Generate more possible surfaces based on the analyzation on onelayer or
+        on one target surface. Default option is True.
+
+    Returns
+    -------
+    no_layers_slablist: list of slablist
+        [[surface0-layer0, surface1-layer0...], [surface0-layer1, surface1-layer1...]...]
+    """
+    slab_onelayers = orgslab_onelayer_generator(struct_ase, miller_index,
+                                                working_dir)
+    no_layers_slablist = []
+    if based_on_onelayer is True:
+        slab_onelayer = slab_onelayers[0]
+        more_onelayers = different_onelayer(slab_onelayer, users_defind_layers)
+        for no_layer in no_layers:
+            slab_list = targetslab_generator(more_onelayers, no_layer,
+                                             vacuum, working_dir, super_cell)
+            no_layers_slablist.append(slab_list)
+    else:
+        for no_layer in no_layers:
+            target_slab = targetslab_generator(slab_onelayers, no_layer,
+                                               vacuum, working_dir, super_cell,
+                                               c_perpendicular=False)
+            delta_move = surface_self_defined(struct_ase, miller_index, no_layer).cell[2, :]
+            slab_list = different_target_surfaces(target_slab[0], vacuum, working_dir,
+                                                  delta_move, super_cell,
+                                                  c_perpendicular=True)
+            no_layers_slablist.append(slab_list)
+    return no_layers_slablist

@@ -1340,7 +1340,7 @@ def double_find_the_gap(little_gap, big_gap, gaps, users_define_layers, tol):
         return medium_gap
 
 
-def different_single_layer(one_layer_slab, users_define_layers=None, delta_move=None):
+def different_onelayer(one_layer_slab, users_define_layers=None, delta_move=None):
     """
         In order to give out more possible surfaces, this function would analyze
         any one layer structure and give out a list of possible one layer structure
@@ -1432,7 +1432,7 @@ def different_single_layer(one_layer_slab, users_define_layers=None, delta_move=
 
 def different_target_surfaces(target_surface, vacuum, working_dir, delta_move=None,
                               super_cell=None, users_define_layers=None, c_perpendicular=True):
-    slab_list = different_single_layer(target_surface, users_define_layers, delta_move=delta_move)
+    slab_list = different_onelayer(target_surface, users_define_layers, delta_move=delta_move)
     surface_list = []
     for slab in slab_list:
         slab_one_surface = deepcopy(slab)
