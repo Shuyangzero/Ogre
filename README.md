@@ -15,15 +15,7 @@ For import paths to work correctly, do
 source init.sh
 ```
 
-To cleave the surface, do
-
-```bash
-cd ogre
-python cleave.py
-```
-
 To generate the input slabs for surface energy calculations, do
 ```bash
-cd ogre
-python surface_energy_calculation.py
+python example.py
 ```
