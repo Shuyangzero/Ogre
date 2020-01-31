@@ -14,8 +14,13 @@ For import paths to work correctly, do
 ```bash
 source init.sh
 ```
+To cleave a certain surface, do
+
+```bash
+python cleave.py
+```
 
 To generate the input slabs for surface energy calculations, do
 ```bash
-python example.py
+python surfaces.py
 ```

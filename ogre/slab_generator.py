@@ -586,7 +586,7 @@ def task(name, struc, miller_index, layers, vacuum,
                                                     for x in miller_index), layer, i), slab_ase)
     shutil.rmtree(working_dir)
 
-def cleave(struc_path, name, vacuum, layers, highest_index=2):
+def cleave_planes(struc_path, name, vacuum, layers, highest_index=2):
         bulk = read(struc_path)
         if not os.path.isdir("output"):
             os.mkdir("output")
