@@ -679,6 +679,7 @@ def get_one_layer(slab, layers_virtual):
     bulk_structure_sg = super_structure_sg * (1, 1, 1)
     super_subgraphs, molecules = get_bulk_subgraphs(bulk_structure_sg)
     account_list = [0] * len(super_subgraphs)
+    c_frac_gap = []
     for index_one in range(len(super_subgraphs) - 1):
         for index_two in range(index_one + 1, len(super_subgraphs)):
             if nx.is_isomorphic(super_subgraphs[index_one], super_subgraphs[index_two],
@@ -693,6 +694,7 @@ def get_one_layer(slab, layers_virtual):
                     for item_b, coord_b in enumerate(coords_two):
                         if species_one[item_a] == species_two[item_b] and abs(coord_a[0] - coord_b[0]) <= 1e-4 and abs(
                                 coord_a[1] - coord_b[1]) <= 1e-4:
+                            c_frac_gap.append(abs(coord_a[2] - coord_b[2]))
                             if coord_a[2] < coord_b[2]:
                                 account += 1
                                 break
@@ -704,6 +706,7 @@ def get_one_layer(slab, layers_virtual):
                     account_list[index_one] += 1
                 elif account <= - 0.5 * len(coords_two):
                     account_list[index_two] += 1
+    delta_cart = slab_incline.lattice.get_cartesian_coords([0, 0, min(c_frac_gap)])
     slab_molecules = [molecule for item, molecule in enumerate(molecules) if account_list[item] != layers_virtual - 1]
     delete_sites = reduced_sites(slab_molecules, slab_incline)
     delete_list = []
@@ -722,7 +725,7 @@ def get_one_layer(slab, layers_virtual):
     structure = io.read(file_name, format=format_)
     os.remove(file_name)
     structure.center(vacuum=0, axis=2)
-    return structure
+    return structure, delta_cart
 
 
 def get_bulk_subgraphs_unique(bulk_structure_sg):
@@ -1422,7 +1425,7 @@ def different_onelayer(one_layer_slab, users_define_layers=None, delta_move=None
 
     for index, slab_temp in enumerate(slab_temp_list):
         file_name = "primitive_onelayer_" + str(index) + ".POSCAR.vasp"
-        slab_temp.set_cell(cell)
+        # slab_temp.set_cell(cell)
         io.write(file_name, images=slab_temp)
         modify_poscar(file_name)
         slab_list[index] = mg.Structure.from_file(file_name)

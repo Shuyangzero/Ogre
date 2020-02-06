@@ -352,7 +352,7 @@ def orgslab_onelayer_generator(struc, miller_index, working_dir):
         slab = handle_with_molecules(slab, delta, down=False)
     except ValueError:
         # No broken molecules anymore. So, return the slab_move
-        slab_move = get_one_layer(slab_move, layers_virtual=virtual_layers)
+        slab_move, delta_cart = get_one_layer(slab_move, layers_virtual=virtual_layers)
         os.remove(working_dir + "/AlreadyMove.POSCAR.vasp")
         temp_file_name = working_dir + "/temp.POSCAR.vasp"
         write(temp_file_name, slab_move)
@@ -360,7 +360,7 @@ def orgslab_onelayer_generator(struc, miller_index, working_dir):
         slab_move = mg.Structure.from_file(temp_file_name)
         os.remove(temp_file_name)
         print("No Broken molecules!")
-        return [slab_move.get_sorted_structure()]
+        return [slab_move.get_sorted_structure()], delta_cart
     os.remove(working_dir + "/AlreadyMove.POSCAR.vasp")
 
     Find_Broken_Molecules(slab, sg, species_intact, coords_intact, unique_bulk_subgraphs)
@@ -371,14 +371,14 @@ def orgslab_onelayer_generator(struc, miller_index, working_dir):
     except ValueError:
         for i in range(len(species_intact)):
             slab.append(species_intact[i], coords_intact[i], coords_are_cartesian=True)
-        slab = get_one_layer(slab, virtual_layers)
+        slab, delta_cart = get_one_layer(slab, virtual_layers)
         temp_file_name = working_dir + "/temp.POSCAR.vasp"
         write(temp_file_name, slab)
         modify_poscar(temp_file_name)
         slab = mg.Structure.from_file(temp_file_name)
         os.remove(temp_file_name)
         print("No Broken molecules!")
-        return [slab.get_sorted_structure()]
+        return [slab.get_sorted_structure()], delta_cart
 
     speices = slab.species
     slab_coords = slab.frac_coords
@@ -429,21 +429,22 @@ def orgslab_onelayer_generator(struc, miller_index, working_dir):
 
     file_name = working_dir + "/POSCAR_move_final.vasp"
     os.remove(working_dir + "/ASE_surface.POSCAR.vasp")
+    delta_cart = 0
     try:
-        slab = get_one_layer(slab, virtual_layers)
+        slab, delta_cart = get_one_layer(slab, virtual_layers)
         output_file = working_dir + "/Orge_surface.POSCAR.vasp"
         write(output_file, slab)
         modify_poscar(output_file)
         slab = mg.Structure.from_file(output_file)
         os.remove(output_file)
-        return [slab.get_sorted_structure()]
+        return [slab.get_sorted_structure()], delta_cart
     except ValueError:
         print("The {} slab with {} layers can not be reconstructed. And the result refers to ASE's surfaces. Please "
               "try the graph_repair method!".format(miller_index, 1))
-        return [slab_temp.get_sorted_structure()]
+        return [slab_temp.get_sorted_structure()], delta_cart
 
 
-def targetslab_generator(slab_list, no_layers, vacuum,
+def targetslab_generator(slab_list, no_layers, delta_cart, vacuum,
                          working_dir, super_cell=None,
                          c_perpendicular=True):
     surface_list = []
@@ -453,8 +454,24 @@ def targetslab_generator(slab_list, no_layers, vacuum,
         file_name = working_dir + "/one_layer.POSCAR.vasp"
         Poscar(slab_one_layer_incline.get_sorted_structure()).write_file(file_name)
         slab_one_layer_incline = read(file_name)
+        slab_one_layer_incline.center(vacuum=1000, axis=2)
         os.remove(file_name)
-        slab_several_layers = slab_one_layer_incline * (1, 1, no_layers)
+        write(file_name, images=slab_one_layer_incline)
+        modify_poscar(file_name)
+        slab_one_layer_incline = mg.Structure.from_file(file_name)
+        os.remove(file_name)
+        # slab_several_layers = slab_one_layer_incline * (1, 1, no_layers)
+        cart_coords = deepcopy(slab_one_layer_incline.cart_coords)
+        species = deepcopy(slab_one_layer_incline.species)
+        for i in range(no_layers - 1):
+            for index, coord in enumerate(cart_coords):
+                new_coord = np.array(coord) + (i + 1) * np.array(delta_cart)
+                slab_one_layer_incline.append(species[index], new_coord,
+                                              coords_are_cartesian=True)
+        Poscar(slab_one_layer_incline.get_sorted_structure()).write_file(file_name)
+        slab_several_layers = read(file_name)
+        os.remove(file_name)
+
         if vacuum is not None:
             slab_several_layers.center(vacuum=vacuum, axis=2)
         if c_perpendicular is True:
@@ -516,19 +533,19 @@ def orgslab_generator(struct_ase, miller_index,
     no_layers_slablist: list of slablist
         [[surface0-layer0, surface1-layer0...], [surface0-layer1, surface1-layer1...]...]
     """
-    slab_onelayers = orgslab_onelayer_generator(struct_ase, miller_index,
-                                                working_dir)
+    slab_onelayers, delta_cart = orgslab_onelayer_generator(struct_ase, miller_index,
+                                                            working_dir)
     no_layers_slablist = []
     if based_on_onelayer is True:
         slab_onelayer = slab_onelayers[0]
-        more_onelayers = different_onelayer(slab_onelayer, users_defind_layers)
+        more_onelayers = different_onelayer(slab_onelayer, users_defind_layers, delta_move=delta_cart)
         for no_layer in no_layers:
-            slab_list = targetslab_generator(more_onelayers, no_layer,
+            slab_list = targetslab_generator(more_onelayers, no_layer, delta_cart,
                                              vacuum, working_dir, super_cell)
             no_layers_slablist.append(slab_list)
     else:
         for no_layer in no_layers:
-            target_slab = targetslab_generator(slab_onelayers, no_layer,
+            target_slab = targetslab_generator(slab_onelayers, no_layer, delta_cart,
                                                vacuum, working_dir, super_cell,
                                                c_perpendicular=False)
             delta_move = surface_self_defined(struct_ase, miller_index, no_layer).cell[2, :]
@@ -537,6 +554,7 @@ def orgslab_generator(struct_ase, miller_index,
                                                   c_perpendicular=True)
             no_layers_slablist.append(slab_list)
     return no_layers_slablist
+
 
 def task(name, struc, miller_index, layers, vacuum,
          super_cell):
@@ -566,7 +584,6 @@ def task(name, struc, miller_index, layers, vacuum,
         os.mkdir(dir_name)
     working_dir = os.path.abspath('./{}'.format(dir_name))
 
-
     print("start {}".format("".join(str(int(x))
                                        for x in miller_index)))
 
@@ -585,6 +602,7 @@ def task(name, struc, miller_index, layers, vacuum,
             write("output/{}.{}.{}.{}.in".format(name, "".join(str(int(x))
                                                     for x in miller_index), layer, i), slab_ase)
     shutil.rmtree(working_dir)
+
 
 def cleave_planes(struc_path, name, vacuum, layers, highest_index=2):
         bulk = read(struc_path)
