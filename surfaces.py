@@ -1,9 +1,9 @@
 from ogre import slab_generator
 
-struc_path = './example_POSCARs/aspirin.POSCAR.vasp'
-name = 'aspirin'
-layers = [2, 3, 4]
+struc_path = './structures/relaxed_structures/.cif'
+name = 'QQQCIG04'
+layers = list(range(1,10))
 highest_index = 1
-vacuum = 15
+vacuum = 40
 
-slab_generator.cleav_planes(struc_path, name, vacuum, layers, highest_index)
+slab_generator.cleave_planes(struc_path, name, vacuum, layers, highest_index)

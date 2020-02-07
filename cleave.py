@@ -1,13 +1,14 @@
 import os
-from ase.io import read
+from ase.io import read, write
 from ogre import slab_generator
 from pymatgen.io.vasp.inputs import Poscar
 
 
-struct = './example_POSCARs/aspirin.POSCAR.vasp'
+struct = './structures/aspirin.POSCAR.vasp'
+name = 'aspirin'
 struct_ase = read(struct)
-miller_index = [1,0,0]
-layers = list(range(2,10,1))
+miller_index = [0, 1, 2]
+layers = list(range(1, 10, 1))
 vacuum = 40
 working_dir = os.path.abspath('.')
 
@@ -16,7 +17,10 @@ slablists = slab_generator.orgslab_generator(struct_ase, miller_index, layers,
                                              users_defind_layers=None,
                                              based_on_onelayer=True)
 
-for index_layer, slablist in enumerate(slablists):
-    for index, slab in enumerate(slablist):
-        Poscar(slab).write_file("Ogre_Surface_" +
-                                str(layers[index_layer]) + "_layers_" + str(index) + ".POSCAR.vasp")
+for layer, slablist in zip(layers, slablists):
+    for i, slab in enumerate(slablist):
+        Poscar(slab).write_file("POSCAR")
+        slab_ase = read("POSCAR")
+        os.remove("POSCAR")
+        write("{}.{}.{}.{}.in".format(name, "".join(str(int(x))
+                                                    for x in miller_index), layer, i), slab_ase)
