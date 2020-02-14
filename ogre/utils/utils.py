@@ -671,7 +671,7 @@ def get_bulk_subgraphs(bulk_structure_sg):
     return super_subgraphs, molecules
 
 
-def get_one_layer(slab, layers_virtual):
+def get_one_layer(working_dir, slab, layers_virtual):
     slab_incline = deepcopy(slab)
     slab_incline = put_everyatom_into_cell(slab_incline)
     super_structure_sg = StructureGraph.with_local_env_strategy(slab_incline,
@@ -717,7 +717,7 @@ def get_one_layer(slab, layers_virtual):
                 delete_list.append(i)
                 break
     slab_incline.remove_sites(delete_list)
-    file_name = 'one_layer.POSCAR.vasp'
+    file_name = working_dir + '/one_layer.POSCAR.vasp'
     Poscar(slab_incline.get_sorted_structure()).write_file(file_name)
 
     # find the structure, next we need to find the periodicity
@@ -1343,7 +1343,7 @@ def double_find_the_gap(little_gap, big_gap, gaps, users_define_layers, tol):
         return medium_gap
 
 
-def different_onelayer(one_layer_slab, users_define_layers=None, delta_move=None):
+def different_onelayer(one_layer_slab, working_dir, users_define_layers=None, delta_move=None):
     """
         In order to give out more possible surfaces, this function would analyze
         any one layer structure and give out a list of possible one layer structure
@@ -1363,7 +1363,7 @@ def different_onelayer(one_layer_slab, users_define_layers=None, delta_move=None
         delta_move : list of double
             [delta_x, delta_y, delta_z], the moving distance of a sub-layer
         """
-    file_name = "one_layer_temp.POSCAR.vasp"
+    file_name = working_dir + "/one_layer_temp.POSCAR.vasp"
     Poscar(one_layer_slab.get_sorted_structure()).write_file(file_name)
     one_layer_temp = io.read(file_name)
     os.remove(file_name)
@@ -1374,7 +1374,7 @@ def different_onelayer(one_layer_slab, users_define_layers=None, delta_move=None
     else:
         delta = delta_move
     one_layer_temp.center(vacuum=1000, axis=2)
-    file_name = "one_layer_temp.POSCAR.vasp"
+    file_name = working_dir + "/one_layer_temp.POSCAR.vasp"
     io.write(file_name, images=one_layer_temp)
     modify_poscar(file_name)
     one_layer = mg.Structure.from_file(file_name)
@@ -1416,7 +1416,7 @@ def different_onelayer(one_layer_slab, users_define_layers=None, delta_move=None
 
     slab_temp_list = []
     for index, slab in enumerate(slab_list):
-        file_name = "primitive_onelayer_" + str(index) + ".POSCAR.vasp"
+        file_name = working_dir + "/primitive_onelayer_" + str(index) + ".POSCAR.vasp"
         Poscar(slab.get_sorted_structure()).write_file(file_name)
         slab_temp = io.read(file_name)
         os.remove(file_name)
@@ -1424,7 +1424,7 @@ def different_onelayer(one_layer_slab, users_define_layers=None, delta_move=None
         slab_temp_list.append(slab_temp)
 
     for index, slab_temp in enumerate(slab_temp_list):
-        file_name = "primitive_onelayer_" + str(index) + ".POSCAR.vasp"
+        file_name = working_dir + "/primitive_onelayer_" + str(index) + ".POSCAR.vasp"
         # slab_temp.set_cell(cell)
         io.write(file_name, images=slab_temp)
         modify_poscar(file_name)

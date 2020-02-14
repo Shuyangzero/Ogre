@@ -7,8 +7,8 @@ from pymatgen.io.vasp.inputs import Poscar
 name = 'HOJCOB'
 struct = './structures/relaxed_structures/{}.cif'.format(name)
 struct_ase = read(struct)
-miller_index = [-1,-1,0]
-layers = list(range(1, 10, 1))
+miller_index = [-1,-1,1]
+layers = list(range(10, 16, 1))
 vacuum = 40
 working_dir = os.path.abspath('.')
 

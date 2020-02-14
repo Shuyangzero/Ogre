@@ -2,7 +2,7 @@ from ogre import slab_generator
 
 name = 'HOJCOB'
 struc_path = './structures/relaxed_structures/{}.cif'.format(name)
-layers = list(range(1,10))
+layers = list(range(10,16))
 highest_index = 1
 vacuum = 40
 

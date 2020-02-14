@@ -352,7 +352,7 @@ def orgslab_onelayer_generator(struc, miller_index, working_dir):
         slab = handle_with_molecules(slab, delta, down=False)
     except ValueError:
         # No broken molecules anymore. So, return the slab_move
-        slab_move, delta_cart = get_one_layer(slab_move, layers_virtual=virtual_layers)
+        slab_move, delta_cart = get_one_layer(working_dir, slab_move, layers_virtual=virtual_layers)
         os.remove(working_dir + "/AlreadyMove.POSCAR.vasp")
         temp_file_name = working_dir + "/temp.POSCAR.vasp"
         write(temp_file_name, slab_move)
@@ -371,7 +371,7 @@ def orgslab_onelayer_generator(struc, miller_index, working_dir):
     except ValueError:
         for i in range(len(species_intact)):
             slab.append(species_intact[i], coords_intact[i], coords_are_cartesian=True)
-        slab, delta_cart = get_one_layer(slab, virtual_layers)
+        slab, delta_cart = get_one_layer(working_dir, slab, virtual_layers)
         temp_file_name = working_dir + "/temp.POSCAR.vasp"
         write(temp_file_name, slab)
         modify_poscar(temp_file_name)
@@ -431,7 +431,7 @@ def orgslab_onelayer_generator(struc, miller_index, working_dir):
     os.remove(working_dir + "/ASE_surface.POSCAR.vasp")
     delta_cart = 0
     try:
-        slab, delta_cart = get_one_layer(slab, virtual_layers)
+        slab, delta_cart = get_one_layer(working_dir, slab, virtual_layers)
         output_file = working_dir + "/Orge_surface.POSCAR.vasp"
         write(output_file, slab)
         modify_poscar(output_file)
@@ -538,10 +538,10 @@ def orgslab_generator(struct_ase, miller_index,
     no_layers_slablist = []
     if based_on_onelayer is True:
         slab_onelayer = slab_onelayers[0]
-        more_onelayers = different_onelayer(slab_onelayer, users_defind_layers, delta_move=delta_cart)
+        more_onelayers = different_onelayer(slab_onelayer, working_dir, users_defind_layers, delta_move=delta_cart)
         for no_layer in no_layers:
             slab_list = targetslab_generator(more_onelayers, no_layer, delta_cart,
-                                             vacuum, working_dir, super_cell)
+                                            vacuum, working_dir, super_cell)
             no_layers_slablist.append(slab_list)
     else:
         for no_layer in no_layers:
@@ -562,7 +562,7 @@ def task(name, struc, miller_index, layers, vacuum,
     Multiprocess task to cleave multiple planes with different layers.
     Parameters
     ----------
-    name: File nam to save.
+    name: File name to save.
     struc : Atoms structure or list of atoms structures
         The original bulk structure.
     miller_index : list of int, [h, k, l]
