@@ -4,10 +4,10 @@ from ogre import slab_generator
 from pymatgen.io.vasp.inputs import Poscar
 
 
-struct = './structures/aspirin.POSCAR.vasp'
-name = 'aspirin'
+name = 'HOJCOB'
+struct = './structures/relaxed_structures/{}.cif'.format(name)
 struct_ase = read(struct)
-miller_index = [0, 1, 2]
+miller_index = [-1,-1,0]
 layers = list(range(1, 10, 1))
 vacuum = 40
 working_dir = os.path.abspath('.')

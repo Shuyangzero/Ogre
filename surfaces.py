@@ -1,7 +1,7 @@
 from ogre import slab_generator
 
-struc_path = './structures/relaxed_structures/.cif'
-name = 'QQQCIG04'
+name = 'HOJCOB'
+struc_path = './structures/relaxed_structures/{}.cif'.format(name)
 layers = list(range(1,10))
 highest_index = 1
 vacuum = 40
