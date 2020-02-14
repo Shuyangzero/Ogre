@@ -1435,7 +1435,7 @@ def different_onelayer(one_layer_slab, working_dir, users_define_layers=None, de
 
 def different_target_surfaces(target_surface, vacuum, working_dir, delta_move=None,
                               super_cell=None, users_define_layers=None, c_perpendicular=True):
-    slab_list = different_onelayer(target_surface, users_define_layers, delta_move=delta_move)
+    slab_list = different_onelayer(target_surface, working_dir, users_define_layers, delta_move=delta_move)
     surface_list = []
     for slab in slab_list:
         slab_one_surface = deepcopy(slab)

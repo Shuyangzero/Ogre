@@ -84,7 +84,8 @@ def inorganic_slab_generator(struc, miller_index, no_layers, vacuum, working_dir
                   "1]!")
         super_cell_copy = deepcopy(super_cell)
         super_cell_copy[-1] = 1
-        new_slabs = [slab.make_supercell(super_cell_copy) for slab in new_slabs]
+        new_slabs = [slab.make_supercell(super_cell_copy)
+                     for slab in new_slabs]
     return new_slabs
 
 
@@ -337,22 +338,28 @@ def orgslab_onelayer_generator(struc, miller_index, working_dir):
     slab_move = mg.Structure.from_file(file_name)
     os.remove(file_name)
     slab_move = handle_with_molecules(slab_move, delta, down=True)
-    Poscar(slab_move.get_sorted_structure()).write_file(working_dir + "/AlreadyMove.POSCAR.vasp")
+    Poscar(slab_move.get_sorted_structure()).write_file(
+        working_dir + "/AlreadyMove.POSCAR.vasp")
     # delete intact molecule in slab_move
     slab = slab_move
     species_intact, coords_intact = [], []
     # os.remove(output_file)
     sg = molecules
-    Find_Broken_Molecules(slab, sg, species_intact, coords_intact, unique_bulk_subgraphs)
+    Find_Broken_Molecules(slab, sg, species_intact,
+                          coords_intact, unique_bulk_subgraphs)
     # find the broken molecules for the first minor movement and delete the intact molecules
     try:
         slab = put_everyatom_into_cell(slab)
-        Poscar(slab.get_sorted_structure()).write_file(working_dir + "/POSCAR_Broken.POSCAR.vasp")
+        Poscar(slab.get_sorted_structure()).write_file(
+            working_dir + "/POSCAR_Broken.POSCAR.vasp")
         os.remove(working_dir + "/POSCAR_Broken.POSCAR.vasp")
         slab = handle_with_molecules(slab, delta, down=False)
     except ValueError:
         # No broken molecules anymore. So, return the slab_move
-        slab_move, delta_cart = get_one_layer(working_dir, slab_move, layers_virtual=virtual_layers)
+        slab_move = mg.Structure.from_file(working_dir +
+                                           "/AlreadyMove.POSCAR.vasp")
+        slab_move, delta_cart = get_one_layer(
+            working_dir, slab_move, layers_virtual=virtual_layers)
         os.remove(working_dir + "/AlreadyMove.POSCAR.vasp")
         temp_file_name = working_dir + "/temp.POSCAR.vasp"
         write(temp_file_name, slab_move)
@@ -360,17 +367,24 @@ def orgslab_onelayer_generator(struc, miller_index, working_dir):
         slab_move = mg.Structure.from_file(temp_file_name)
         os.remove(temp_file_name)
         print("No Broken molecules!")
+        try:
+            os.remove(working_dir + "/ASE_surface.POSCAR.vasp")
+        except FileNotFoundError:
+            print("Already delete!")
         return [slab_move.get_sorted_structure()], delta_cart
     os.remove(working_dir + "/AlreadyMove.POSCAR.vasp")
 
-    Find_Broken_Molecules(slab, sg, species_intact, coords_intact, unique_bulk_subgraphs)
+    Find_Broken_Molecules(slab, sg, species_intact,
+                          coords_intact, unique_bulk_subgraphs)
     try:
         slab = put_everyatom_into_cell(slab)
-        Poscar(slab.get_sorted_structure()).write_file(working_dir + "/POSCAR_Broken_two.POSCAR.vasp")
+        Poscar(slab.get_sorted_structure()).write_file(
+            working_dir + "/POSCAR_Broken_two.POSCAR.vasp")
         os.remove(working_dir + "/POSCAR_Broken_two.POSCAR.vasp")
     except ValueError:
         for i in range(len(species_intact)):
-            slab.append(species_intact[i], coords_intact[i], coords_are_cartesian=True)
+            slab.append(
+                species_intact[i], coords_intact[i], coords_are_cartesian=True)
         slab, delta_cart = get_one_layer(working_dir, slab, virtual_layers)
         temp_file_name = working_dir + "/temp.POSCAR.vasp"
         write(temp_file_name, slab)
@@ -378,6 +392,10 @@ def orgslab_onelayer_generator(struc, miller_index, working_dir):
         slab = mg.Structure.from_file(temp_file_name)
         os.remove(temp_file_name)
         print("No Broken molecules!")
+        try:
+            os.remove(working_dir + "/ASE_surface.POSCAR.vasp")
+        except FileNotFoundError:
+            print("Already delete!")
         return [slab.get_sorted_structure()], delta_cart
 
     speices = slab.species
@@ -387,11 +405,13 @@ def orgslab_onelayer_generator(struc, miller_index, working_dir):
     for i, coord in enumerate(slab_coords):
         new_cart_coords = np.array(slab_coords_cart[i]) + delta
         # move the slab to match broken molecules
-        slab.append(speices[i], coords=new_cart_coords, coords_are_cartesian=True)
+        slab.append(speices[i], coords=new_cart_coords,
+                    coords_are_cartesian=True)
 
     try:
         for i in range(len(species_intact)):
-            slab.append(species_intact[i], coords_intact[i], coords_are_cartesian=True)
+            slab.append(
+                species_intact[i], coords_intact[i], coords_are_cartesian=True)
         file_name = working_dir + '/POSCAR_move.vasp'
         Poscar(slab.get_sorted_structure()).write_file(file_name)
         slab = mg.Structure.from_file(file_name)
@@ -406,11 +426,13 @@ def orgslab_onelayer_generator(struc, miller_index, working_dir):
 
         slab_supercell_sg = slab_sg * (3, 3, 1)
         different_subgraphs_in_slab, slab_molecules = \
-            get_slab_different_subgraphs(slab_supercell_sg, unique_bulk_subgraphs)
+            get_slab_different_subgraphs(
+                slab_supercell_sg, unique_bulk_subgraphs)
         # sg = super_structure_sg.get_subgraphs_as_molecules()
         sg = molecules
         slab_molecules = double_screen(slab_molecules, sg)
-        print("The number of molecules that need to be fixed : ", len(slab_molecules))
+        print("The number of molecules that need to be fixed : ",
+              len(slab_molecules))
         # slab_molecules are the molecules that are broken and need to be fixed
         delete_sites = reduced_sites(slab_molecules, slab)
         delete_list = []
@@ -452,7 +474,8 @@ def targetslab_generator(slab_list, no_layers, delta_cart, vacuum,
     for slab in slab_list:
         slab_one_layer_incline = deepcopy(slab)
         file_name = working_dir + "/one_layer.POSCAR.vasp"
-        Poscar(slab_one_layer_incline.get_sorted_structure()).write_file(file_name)
+        Poscar(slab_one_layer_incline.get_sorted_structure()
+               ).write_file(file_name)
         slab_one_layer_incline = read(file_name)
         slab_one_layer_incline.center(vacuum=1000, axis=2)
         os.remove(file_name)
@@ -468,7 +491,8 @@ def targetslab_generator(slab_list, no_layers, delta_cart, vacuum,
                 new_coord = np.array(coord) + (i + 1) * np.array(delta_cart)
                 slab_one_layer_incline.append(species[index], new_coord,
                                               coords_are_cartesian=True)
-        Poscar(slab_one_layer_incline.get_sorted_structure()).write_file(file_name)
+        Poscar(slab_one_layer_incline.get_sorted_structure()
+               ).write_file(file_name)
         slab_several_layers = read(file_name)
         os.remove(file_name)
 
@@ -538,17 +562,19 @@ def orgslab_generator(struct_ase, miller_index,
     no_layers_slablist = []
     if based_on_onelayer is True:
         slab_onelayer = slab_onelayers[0]
-        more_onelayers = different_onelayer(slab_onelayer, working_dir, users_defind_layers, delta_move=delta_cart)
+        more_onelayers = different_onelayer(
+            slab_onelayer, working_dir, users_defind_layers, delta_move=delta_cart)
         for no_layer in no_layers:
             slab_list = targetslab_generator(more_onelayers, no_layer, delta_cart,
-                                            vacuum, working_dir, super_cell)
+                                             vacuum, working_dir, super_cell)
             no_layers_slablist.append(slab_list)
     else:
         for no_layer in no_layers:
             target_slab = targetslab_generator(slab_onelayers, no_layer, delta_cart,
                                                vacuum, working_dir, super_cell,
                                                c_perpendicular=False)
-            delta_move = surface_self_defined(struct_ase, miller_index, no_layer).cell[2, :]
+            delta_move = surface_self_defined(
+                struct_ase, miller_index, no_layer).cell[2, :]
             slab_list = different_target_surfaces(target_slab[0], vacuum, working_dir,
                                                   delta_move, super_cell,
                                                   c_perpendicular=True)
@@ -562,7 +588,7 @@ def task(name, struc, miller_index, layers, vacuum,
     Multiprocess task to cleave multiple planes with different layers.
     Parameters
     ----------
-    name: File name to save.
+    name: File nam to save.
     struc : Atoms structure or list of atoms structures
         The original bulk structure.
     miller_index : list of int, [h, k, l]
@@ -579,39 +605,40 @@ def task(name, struc, miller_index, layers, vacuum,
 
     # Create working directory to isolate the workflow
     dir_name = '{}_{}'.format(name, "".join(str(int(x))
-                                               for x in miller_index))
+                                            for x in miller_index))
     if not os.path.isdir(dir_name):
         os.mkdir(dir_name)
     working_dir = os.path.abspath('./{}'.format(dir_name))
 
     print("start {}".format("".join(str(int(x))
-                                       for x in miller_index)))
+                                    for x in miller_index)))
 
     slab_lists = orgslab_generator(struc, miller_index, layers,
-                                             vacuum, working_dir, super_cell,
-                                             users_defind_layers=None,
-                                             based_on_onelayer=True)
+                                   vacuum, working_dir, super_cell,
+                                   users_defind_layers=None,
+                                   based_on_onelayer=True)
 
     for layer, slab_list in zip(layers, slab_lists):
         for i, slab in enumerate(slab_list):
-            poscar_str = "output/POSCAR.{}.{}.{}.{}".format(name, "".join(str(int(x))
-                                                               for x in miller_index), layer, i)
+            poscar_str = "{}/POSCAR.{}.{}.{}.{}".format(name, name, "".join(str(int(x))
+                                                                          for x in miller_index), layer, i)
             Poscar(slab).write_file(poscar_str)
             slab_ase = read(poscar_str)
             os.remove(poscar_str)
-            write("output/{}.{}.{}.{}.in".format(name, "".join(str(int(x))
-                                                    for x in miller_index), layer, i), slab_ase)
+            write("{}/{}.{}.{}.{}.in".format(name, name, "".join(str(int(x))
+                                                               for x in miller_index), layer, i), slab_ase)
     shutil.rmtree(working_dir)
 
 
 def cleave_planes(struc_path, name, vacuum, layers, highest_index=2):
         bulk = read(struc_path)
-        if not os.path.isdir("output"):
-            os.mkdir("output")
+        if not os.path.isdir(name):
+            os.mkdir(name)
         up = UniquePlanes(bulk, index=highest_index, verbose=False)
         p = Pool()
         print("{} unique planes are found".format(len(up.unique_idx)))
         for miller_index in up.unique_idx:
-            p.apply_async(task, args=(name, bulk, miller_index, layers, vacuum, None,))
+            p.apply_async(task, args=(
+                name, bulk, miller_index, layers, vacuum, None,))
         p.close()
         p.join()
