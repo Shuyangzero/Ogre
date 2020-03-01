@@ -5,6 +5,7 @@ __pycache__
 .vscode
 utils/__pycache__
 build
+extract.sh
 dist
 *.egg-info
 ogre/output
