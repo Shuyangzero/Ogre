@@ -318,7 +318,7 @@ def orgslab_onelayer_generator(struc, miller_index, working_dir):
     print("There would be {} different molecules in bulk".format(str(len(molecules))))
     # get the slab via ase and deal with it via pymatgen
     os.remove(working_dir + '/bulk.POSCAR.vasp')
-    slab = surface(struc, miller_index, layers=1, vacuum=0)
+    slab = surface(struc, miller_index, layers=1, vacuum=15)
     file_name = working_dir + "/ASE_surface.POSCAR.vasp"
     format_ = 'vasp'
     write(file_name, format=format_, images=slab)

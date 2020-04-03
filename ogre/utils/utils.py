@@ -724,7 +724,7 @@ def get_one_layer(working_dir, slab, layers_virtual):
     format_ = 'vasp'
     structure = io.read(file_name, format=format_)
     os.remove(file_name)
-    structure.center(vacuum=0, axis=2)
+    structure.center(vacuum=15, axis=2)
     return structure, delta_cart
 
 
@@ -1367,7 +1367,7 @@ def different_onelayer(one_layer_slab, working_dir, users_define_layers=None, de
     Poscar(one_layer_slab.get_sorted_structure()).write_file(file_name)
     one_layer_temp = io.read(file_name)
     os.remove(file_name)
-    one_layer_temp.center(vacuum=0, axis=2)
+    one_layer_temp.center(vacuum=15, axis=2)
     cell = deepcopy(one_layer_temp.cell)
     if delta_move is None:
         delta = np.array(one_layer_temp.cell)[2, :]
@@ -1420,7 +1420,7 @@ def different_onelayer(one_layer_slab, working_dir, users_define_layers=None, de
         Poscar(slab.get_sorted_structure()).write_file(file_name)
         slab_temp = io.read(file_name)
         os.remove(file_name)
-        slab_temp.center(vacuum=0, axis=2)
+        slab_temp.center(vacuum=15, axis=2)
         slab_temp_list.append(slab_temp)
 
     for index, slab_temp in enumerate(slab_temp_list):
