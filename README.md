@@ -16,13 +16,39 @@ For import paths to work correctly, do
 ```bash
 source init.sh
 ```
-To cleave a certain surface, do
+All configurations are stored in the .config file
+
+ogre.config:
 
 ```bash
-python cleave.py
+[io]
+structure_path = ./structures/relaxed_structures/aspirin.cif
+structure_name = aspirin
+format = FHI
+; Format can be FHI, VASP or CIF
+[methods]
+cleave_option = 1
+[parameters]
+layers = 1-9 13 14
+; Layers could be specified as combination of start-end or separate numbers by space
+vacuum_size = 40
+highest_index = 1
+; Only needed in cleave_option = 1
+supercell_size = None
+miller_index = 1 0 0
+; Only needed in cleave_option = 0
 ```
 
-To generate the input slabs for surface energy calculations, do
+
+ogreSWAMP.config:
+
+
+To run ogre
 ```bash
-python surfaces.py
+python run_ogre.py --filename ogre.config
+```
+
+To run ogreSWAMP
+```bash
+python run_ogreSWAMP.py --filename ogreSWAMP.config
 ```
