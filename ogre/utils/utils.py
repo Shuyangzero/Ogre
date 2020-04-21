@@ -4,10 +4,14 @@ from ase.utils import gcd, basestring
 from ase.build import bulk
 from copy import deepcopy
 from numpy.linalg import norm, solve
-from pymatgen.analysis.graphs import *
+from pymatgen.analysis.graphs import MoleculeGraph, StructureGraph
 from pymatgen.core.structure import Molecule
 from pymatgen.io.vasp.inputs import Poscar
 from ase import io
+import networkx.algorithms.isomorphism as iso
+import numpy as np
+import networkx as nx
+from pymatgen.core.lattice import Lattice
 from pymatgen.core.sites import PeriodicSite
 # used for deciding which atoms are bonded
 from pymatgen.analysis.local_env import JmolNN
@@ -35,7 +39,7 @@ def modify_poscar(file):
 
 
 # this is a self_build method for generating the universal surface
-def surface_self_defined(lattice, indices, layers, tol=1e-10, termination=0):
+def surface(lattice, indices, layers, tol=1e-10, termination=0):
     """Create surface from a given lattice and Miller indices.
 
     lattice: Atoms object or str
@@ -428,7 +432,11 @@ def get_broken_molecules(self, bulk_subgraphs, use_weights=False):
 
     return molecules
 
+    # now define how we test for isomorphism
+def node_match(n1, n2):
+    return n1['specie'] == n2['specie']
 
+            
 def get_bulk_molecules(self, use_weights=False):
     # get rid of the repetitve molecule in bulk, only left with unique molecule######
     """
@@ -518,7 +526,6 @@ def get_bulk_molecules(self, use_weights=False):
 
         coords = [supercell_sg.structure[n].coords for n
                   in subgraph.nodes()]
-        # ???????????pymatgen structure object of structureGraph object
         species = [supercell_sg.structure[n].specie for n
                    in subgraph.nodes()]
 
@@ -669,64 +676,6 @@ def get_bulk_subgraphs(bulk_structure_sg):
         molecule = mg.Molecule(species=species, coords=coords)
         molecules.append(molecule)
     return super_subgraphs, molecules
-
-
-def get_one_layer(working_dir, slab, layers_virtual):
-    slab_incline = deepcopy(slab)
-    slab_incline = put_everyatom_into_cell(slab_incline)
-    super_structure_sg = StructureGraph.with_local_env_strategy(slab_incline,
-                                                                JmolNN())
-    bulk_structure_sg = super_structure_sg * (1, 1, 1)
-    super_subgraphs, molecules = get_bulk_subgraphs(bulk_structure_sg)
-    account_list = [0] * len(super_subgraphs)
-    c_frac_gap = []
-    for index_one in range(len(super_subgraphs) - 1):
-        for index_two in range(index_one + 1, len(super_subgraphs)):
-            if nx.is_isomorphic(super_subgraphs[index_one], super_subgraphs[index_two],
-                                node_match=node_match):
-                species_one = molecules[index_one].species
-                coords_one = slab_incline.lattice.get_fractional_coords(molecules[index_one].cart_coords)
-                species_two = molecules[index_two].species
-                coords_two = slab_incline.lattice.get_fractional_coords(molecules[index_two].cart_coords)
-
-                account = 0
-                for item_a, coord_a in enumerate(coords_one):
-                    for item_b, coord_b in enumerate(coords_two):
-                        if species_one[item_a] == species_two[item_b] and abs(coord_a[0] - coord_b[0]) <= 1e-4 and abs(
-                                coord_a[1] - coord_b[1]) <= 1e-4:
-                            c_frac_gap.append(abs(coord_a[2] - coord_b[2]))
-                            if coord_a[2] < coord_b[2]:
-                                account += 1
-                                break
-                            else:
-                                account -= 1
-                                break
-
-                if account >= 0.5 * len(coords_one):
-                    account_list[index_one] += 1
-                elif account <= - 0.5 * len(coords_two):
-                    account_list[index_two] += 1
-    delta_cart = slab_incline.lattice.get_cartesian_coords([0, 0, min(c_frac_gap)])
-    slab_molecules = [molecule for item, molecule in enumerate(molecules) if account_list[item] != layers_virtual - 1]
-    delete_sites = reduced_sites(slab_molecules, slab_incline)
-    delete_list = []
-
-    for delete_site in delete_sites:
-        for i, atom in enumerate(slab_incline):
-            if atom.is_periodic_image(delete_site):
-                delete_list.append(i)
-                break
-    slab_incline.remove_sites(delete_list)
-    file_name = working_dir + '/one_layer.POSCAR.vasp'
-    Poscar(slab_incline.get_sorted_structure()).write_file(file_name)
-
-    # find the structure, next we need to find the periodicity
-    format_ = 'vasp'
-    structure = io.read(file_name, format=format_)
-    os.remove(file_name)
-    structure.center(vacuum=15, axis=2)
-    return structure, delta_cart
-
 
 def get_bulk_subgraphs_unique(bulk_structure_sg):
     """get unique subgraphs of bulk based on graph algorithm.
@@ -1121,31 +1070,6 @@ def put_everyatom_into_cell(slab):
         slab.append(species=site.specie, coords=site.coords, coords_are_cartesian=True)
     return slab
 
-
-def timeTest(func):
-    def clock(*args):
-        working_dir = args[-1]
-        # folder_files = working_dir.split('/')
-        # test = False
-        test = True
-        # for item in folder_files:
-        #     if 'test' in item:
-        #         test = True
-        #         break
-        if test is True:
-            t0 = time.perf_counter()
-            result = func(*args)
-            t1 = time.perf_counter() - t0
-            name = func.__name__
-            arg_str = ','.join(repr(arg) for arg in args)
-            print("[%0.8fs] %s(%s)" % (t1, name, arg_str))
-            return result
-        else:
-            result = func(*args)
-            return result
-    return clock
-
-
 def less_fix_broken_molecules(less_broken_subgraphs, less_intact_subgraphs,
                               bulk_super_structure_sg,
                               slab_supercell_sg,
@@ -1231,7 +1155,7 @@ def less_fix_broken_molecules(less_broken_subgraphs, less_intact_subgraphs,
                     Find = True
                     break
         if Find is not True:
-            print("didn't find the fouth one!")
+            print("didn't find the fourth one!")
             sys.exit()
         node1, node2 = nodes1, nodes2
         coords1 = [slab_supercell_sg.structure[n].coords for n in node1]
@@ -1341,124 +1265,3 @@ def double_find_the_gap(little_gap, big_gap, gaps, users_define_layers, tol):
         return double_find_the_gap(little_gap, medium_gap, gaps, users_define_layers, tol)
     else:
         return medium_gap
-
-
-def different_onelayer(one_layer_slab, working_dir, users_define_layers=None, delta_move=None):
-    """
-        In order to give out more possible surfaces, this function would analyze
-        any one layer structure and give out a list of possible one layer structure
-        based on the atoms exposed.
-
-        For example: Cleaving a low miller index ([2, 1, 1]) surface with an
-        appropriate number (3, 4 ...) of layer
-
-        Parameters
-        ----------
-        one_layer_slab : Atoms structure or list of atoms structures
-            The structure for any one layer surface.
-        users_define_layers : int
-            The number of the sub-layers that one layer might have. "None" is
-            the default option, in which every molecule would be regarded
-            as a sub-layer
-        delta_move : list of double
-            [delta_x, delta_y, delta_z], the moving distance of a sub-layer
-        """
-    file_name = working_dir + "/one_layer_temp.POSCAR.vasp"
-    Poscar(one_layer_slab.get_sorted_structure()).write_file(file_name)
-    one_layer_temp = io.read(file_name)
-    os.remove(file_name)
-    one_layer_temp.center(vacuum=15, axis=2)
-    cell = deepcopy(one_layer_temp.cell)
-    if delta_move is None:
-        delta = np.array(one_layer_temp.cell)[2, :]
-    else:
-        delta = delta_move
-    one_layer_temp.center(vacuum=1000, axis=2)
-    file_name = working_dir + "/one_layer_temp.POSCAR.vasp"
-    io.write(file_name, images=one_layer_temp)
-    modify_poscar(file_name)
-    one_layer = mg.Structure.from_file(file_name)
-    os.remove(file_name)
-    one_layer = put_everyatom_into_cell(one_layer)
-    one_layer_sg = StructureGraph.with_local_env_strategy(one_layer, JmolNN())
-    bulk_sg = one_layer_sg * (1, 1, 1)
-    subgraphs, molecules = get_bulk_subgraphs(bulk_structure_sg=bulk_sg)
-    highest_z_locations = [np.max(np.array(one_layer.lattice.get_fractional_coords(molecule.cart_coords))[:, 2])
-                           for molecule in molecules]
-    highest_species = [
-        str(molecule.species[np.argmax(np.array(one_layer.lattice.get_fractional_coords(molecule.cart_coords))[:,
-                                       2])]) for molecule in molecules]
-
-    [highest_z_locations, highest_species, molecules] = list(
-        zip(*(sorted(zip(highest_z_locations, highest_species, molecules), key=lambda a: a[0], reverse=True))))
-
-    gaps = [highest_z_locations[i] - highest_z_locations[i + 1] for i in range(len(highest_species) - 1)]
-
-    small_gap, big_gap = 0, 1
-    if users_define_layers is None:
-        users_define_layers = len(molecules)
-
-    medium_gap = double_find_the_gap(small_gap, big_gap, gaps, users_define_layers, 1e-4)
-    if medium_gap != -1:
-        qualified = [medium_gap < gap for gap in gaps]
-    else:
-        qualified = [1] * len(gaps)
-
-    slab_list = [one_layer]
-
-    one_layer_temp = deepcopy(one_layer)
-    highes_specie = [highest_species[0]]
-    for index, molecule in enumerate(molecules[: -1]):
-        if qualified[index] == 1 and highest_species[index + 1] not in highes_specie:
-            one_layer_temp_two = move_molecule(molecules[: index + 1], one_layer_temp, delta)
-            slab_list.append(one_layer_temp_two)
-            highes_specie.append(highest_species[index + 1])
-
-    slab_temp_list = []
-    for index, slab in enumerate(slab_list):
-        file_name = working_dir + "/primitive_onelayer_" + str(index) + ".POSCAR.vasp"
-        Poscar(slab.get_sorted_structure()).write_file(file_name)
-        slab_temp = io.read(file_name)
-        os.remove(file_name)
-        slab_temp.center(vacuum=15, axis=2)
-        slab_temp_list.append(slab_temp)
-
-    for index, slab_temp in enumerate(slab_temp_list):
-        file_name = working_dir + "/primitive_onelayer_" + str(index) + ".POSCAR.vasp"
-        # slab_temp.set_cell(cell)
-        io.write(file_name, images=slab_temp)
-        modify_poscar(file_name)
-        slab_list[index] = mg.Structure.from_file(file_name)
-        os.remove(file_name)
-    return slab_list
-
-
-def different_target_surfaces(target_surface, vacuum, working_dir, delta_move=None,
-                              super_cell=None, users_define_layers=None, c_perpendicular=True):
-    slab_list = different_onelayer(target_surface, working_dir, users_define_layers, delta_move=delta_move)
-    surface_list = []
-    for slab in slab_list:
-        slab_one_surface = deepcopy(slab)
-        file_name = working_dir + "/one_layer.POSCAR.vasp"
-        Poscar(slab_one_surface.get_sorted_structure()).write_file(file_name)
-        slab_one_surface = io.read(file_name)
-        os.remove(file_name)
-        if vacuum is not None:
-            slab_one_surface.center(vacuum=vacuum, axis=2)
-        if c_perpendicular is True:
-            slab_one_surface = modify_cell(slab_one_surface)
-        io.write(file_name, images=slab_one_surface)
-        modify_poscar(file_name)
-        slab_one_surface = mg.Structure.from_file(file_name)
-        os.remove(file_name)
-        if super_cell is not None:
-            if super_cell[-1] != 1:
-                print("Warning: Please extend c direction by cleaving more layers "
-                      "rather than make supercell! The supercell is aotumatically "
-                      "set to [" + str(super_cell[0]) + ", " + str(super_cell[1]) + ", " +
-                      "1]!")
-            super_cell_copy = deepcopy(super_cell)
-            super_cell_copy[-1] = 1
-            slab_one_surface.make_supercell(super_cell_copy)
-        surface_list.append(slab_one_surface.get_sorted_structure())
-    return surface_list
