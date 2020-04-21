@@ -1,3 +1,4 @@
+# -*- coding: UTF-8 -*-
 from abc import ABC, abstractmethod
 from ase.io import read, write
 from ase.build import surface
@@ -17,8 +18,8 @@ import pymatgen as mg
 from tqdm import tqdm
 import networkx as nx
 
-class SlabGenerator(ABC):
 
+class SlabGenerator(ABC):
     def __init__(self, initial_structure, miller_index, list_of_layers, vacuum_size, supercell_size, working_directory):
         self.initial_structure = initial_structure
         self.miller_index = miller_index
@@ -33,7 +34,6 @@ class SlabGenerator(ABC):
 
 
 class InorganicSlabGenerator(SlabGenerator):
-
     def __init__(self, initial_structure, miller_index, list_of_layers, vacuum_size, supercell_size, working_directory):
         super().__init__(initial_structure, miller_index, list_of_layers,
                          vacuum_size, supercell_size, working_directory)
@@ -64,7 +64,8 @@ class OrganicSlabGenerator(SlabGenerator):
         slab_list = list(termination_list)
         for slab in slab_list:
             slab_one_layer_incline = deepcopy(slab)
-            file_name = os.path.join(self.working_directory, "one_layer.POSCAR.vasp")
+            file_name = os.path.join(
+                self.working_directory, "one_layer.POSCAR.vasp")
             Poscar(slab_one_layer_incline.get_sorted_structure()
                    ).write_file(file_name)
             slab_one_layer_incline = read(file_name)
@@ -110,7 +111,8 @@ class OrganicSlabGenerator(SlabGenerator):
     def _cleave_one_layer(self):
         write(os.path.join(self.working_directory, 'bulk.POSCAR.vasp'),
               self.initial_structure, format="vasp")
-        utils.modify_poscar(os.path.join(self.working_directory, 'bulk.POSCAR.vasp'))
+        utils.modify_poscar(os.path.join(
+            self.working_directory, 'bulk.POSCAR.vasp'))
         bulk = mg.Structure.from_file(
             os.path.join(self.working_directory, 'bulk.POSCAR.vasp'))
         super_structure_sg = StructureGraph.with_local_env_strategy(bulk,
@@ -124,7 +126,8 @@ class OrganicSlabGenerator(SlabGenerator):
         os.remove(os.path.join(self.working_directory, 'bulk.POSCAR.vasp'))
         slab = surface(self.initial_structure,
                        self.miller_index, layers=1, vacuum=15)
-        file_name = os.path.join(self.working_directory, "ASE_surface.POSCAR.vasp")
+        file_name = os.path.join(
+            self.working_directory, "ASE_surface.POSCAR.vasp")
         format_ = 'vasp'
         write(file_name, format=format_, images=slab)
         utils.modify_poscar(file_name)
@@ -138,7 +141,8 @@ class OrganicSlabGenerator(SlabGenerator):
         # if self.vacuum_size is not None:
         slab.center(vacuum=1000, axis=2)
 
-        file_name = os.path.join(self.working_directory,'slab_before.POSCAR.vasp')
+        file_name = os.path.join(
+            self.working_directory, 'slab_before.POSCAR.vasp')
         write(file_name, format=format_, images=slab)
         utils.modify_poscar(file_name)
         slab_move = mg.Structure.from_file(file_name)
@@ -152,53 +156,62 @@ class OrganicSlabGenerator(SlabGenerator):
         # os.remove(output_file)
         sg = molecules
         utils.Find_Broken_Molecules(slab, sg, species_intact,
-                              coords_intact, unique_bulk_subgraphs)
+                                    coords_intact, unique_bulk_subgraphs)
         # find the broken molecules for the first minor movement and delete the intact molecules
         try:
             slab = utils.put_everyatom_into_cell(slab)
             Poscar(slab.get_sorted_structure()).write_file(
-                os.path.join(self.working_directory,"POSCAR_Broken.POSCAR.vasp"))
-            os.remove(os.path.join(self.working_directory,"POSCAR_Broken.POSCAR.vasp"))
+                os.path.join(self.working_directory, "POSCAR_Broken.POSCAR.vasp"))
+            os.remove(os.path.join(self.working_directory,
+                                   "POSCAR_Broken.POSCAR.vasp"))
             slab = utils.handle_with_molecules(slab, delta, down=False)
         except ValueError:
             # No broken molecules anymore. So, return the slab_move
-            slab_move = mg.Structure.from_file(os.path.join(self.working_directory, "AlreadyMove.POSCAR.vasp"))
-            slab_move, delta_cart = self._extract_layer(slab_move, layers_virtual=virtual_layers)
-            os.remove(os.path.join(self.working_directory, "AlreadyMove.POSCAR.vasp"))
-            temp_file_name = os.path.join(self.working_directory, "temp.POSCAR.vasp")
+            slab_move = mg.Structure.from_file(os.path.join(
+                self.working_directory, "AlreadyMove.POSCAR.vasp"))
+            slab_move, delta_cart = self._extract_layer(
+                slab_move, layers_virtual=virtual_layers)
+            os.remove(os.path.join(self.working_directory,
+                                   "AlreadyMove.POSCAR.vasp"))
+            temp_file_name = os.path.join(
+                self.working_directory, "temp.POSCAR.vasp")
             write(temp_file_name, slab_move)
             utils.modify_poscar(temp_file_name)
             slab_move = mg.Structure.from_file(temp_file_name)
             os.remove(temp_file_name)
             print("No Broken molecules!")
             try:
-                os.remove(os.path.join(self.working_directory, "ASE_surface.POSCAR.vasp"))
+                os.remove(os.path.join(self.working_directory,
+                                       "ASE_surface.POSCAR.vasp"))
             except FileNotFoundError:
                 print("Already delete!")
             return [slab_move.get_sorted_structure()], delta_cart
-        os.remove(os.path.join(self.working_directory, "AlreadyMove.POSCAR.vasp"))
+        os.remove(os.path.join(self.working_directory,
+                               "AlreadyMove.POSCAR.vasp"))
 
         utils.Find_Broken_Molecules(slab, sg, species_intact,
-                              coords_intact, unique_bulk_subgraphs)
+                                    coords_intact, unique_bulk_subgraphs)
         try:
             slab = utils.put_everyatom_into_cell(slab)
             Poscar(slab.get_sorted_structure()).write_file(
-                os.path.join(self.working_directory , "POSCAR_Broken_two.POSCAR.vasp"))
-            os.remove(os.path.join(self.working_directory +
-                      "POSCAR_Broken_two.POSCAR.vasp"))
+                os.path.join(self.working_directory, "POSCAR_Broken_two.POSCAR.vasp"))
+            os.remove(os.path.join(self.working_directory,
+                                   "POSCAR_Broken_two.POSCAR.vasp"))
         except ValueError:
             for i in range(len(species_intact)):
                 slab.append(
                     species_intact[i], coords_intact[i], coords_are_cartesian=True)
             slab, delta_cart = self._extract_layer(slab, virtual_layers)
-            temp_file_name = os.path.join(self.working_directory, "temp.POSCAR.vasp")
+            temp_file_name = os.path.join(
+                self.working_directory, "temp.POSCAR.vasp")
             write(temp_file_name, slab)
             utils.modify_poscar(temp_file_name)
             slab = mg.Structure.from_file(temp_file_name)
             os.remove(temp_file_name)
             print("No Broken molecules!")
             try:
-                os.remove(os.path.join(self.working_directory, "ASE_surface.POSCAR.vasp"))
+                os.remove(os.path.join(self.working_directory,
+                                       "ASE_surface.POSCAR.vasp"))
             except FileNotFoundError:
                 print("Already delete!")
             return [slab.get_sorted_structure()], delta_cart
@@ -217,7 +230,8 @@ class OrganicSlabGenerator(SlabGenerator):
             for i in range(len(species_intact)):
                 slab.append(
                     species_intact[i], coords_intact[i], coords_are_cartesian=True)
-            file_name = os.path.join(self.working_directory, 'POSCAR_move.vasp')
+            file_name = os.path.join(
+                self.working_directory, 'POSCAR_move.vasp')
             Poscar(slab.get_sorted_structure()).write_file(file_name)
             slab = mg.Structure.from_file(file_name)
             os.remove(file_name)
@@ -254,12 +268,15 @@ class OrganicSlabGenerator(SlabGenerator):
         # for i in range(len(species_intact)):
         #     slab.append(species_intact[i], coords_intact[i], coords_are_cartesian=True)
 
-        file_name = os.path.join(self.working_directory, "POSCAR_move_final.vasp")
-        os.remove(os.path.join(self.working_directory, "ASE_surface.POSCAR.vasp"))
+        file_name = os.path.join(
+            self.working_directory, "POSCAR_move_final.vasp")
+        os.remove(os.path.join(self.working_directory,
+                               "ASE_surface.POSCAR.vasp"))
         delta_cart = 0
         try:
             slab, delta_cart = self._extract_layer(slab, virtual_layers)
-            output_file = os.path.join(self.working_directory, "Orge_surface.POSCAR.vasp")
+            output_file = os.path.join(
+                self.working_directory, "Orge_surface.POSCAR.vasp")
             write(output_file, slab)
             utils.modify_poscar(output_file)
             slab = mg.Structure.from_file(output_file)
@@ -276,7 +293,8 @@ class OrganicSlabGenerator(SlabGenerator):
         super_structure_sg = StructureGraph.with_local_env_strategy(slab_incline,
                                                                     JmolNN())
         bulk_structure_sg = super_structure_sg * (1, 1, 1)
-        super_subgraphs, molecules = utils.get_bulk_subgraphs(bulk_structure_sg)
+        super_subgraphs, molecules = utils.get_bulk_subgraphs(
+            bulk_structure_sg)
         account_list = [0] * len(super_subgraphs)
         c_frac_gap = []
         for index_one in range(len(super_subgraphs) - 1):
@@ -284,9 +302,11 @@ class OrganicSlabGenerator(SlabGenerator):
                 if nx.is_isomorphic(super_subgraphs[index_one], super_subgraphs[index_two],
                                     node_match=utils.node_match):
                     species_one = molecules[index_one].species
-                    coords_one = slab_incline.lattice.get_fractional_coords(molecules[index_one].cart_coords)
+                    coords_one = slab_incline.lattice.get_fractional_coords(
+                        molecules[index_one].cart_coords)
                     species_two = molecules[index_two].species
-                    coords_two = slab_incline.lattice.get_fractional_coords(molecules[index_two].cart_coords)
+                    coords_two = slab_incline.lattice.get_fractional_coords(
+                        molecules[index_two].cart_coords)
 
                     account = 0
                     for item_a, coord_a in enumerate(coords_one):
@@ -305,8 +325,10 @@ class OrganicSlabGenerator(SlabGenerator):
                         account_list[index_one] += 1
                     elif account <= - 0.5 * len(coords_two):
                         account_list[index_two] += 1
-        delta_cart = slab_incline.lattice.get_cartesian_coords([0, 0, min(c_frac_gap)])
-        slab_molecules = [molecule for item, molecule in enumerate(molecules) if account_list[item] != layers_virtual - 1]
+        delta_cart = slab_incline.lattice.get_cartesian_coords(
+            [0, 0, min(c_frac_gap)])
+        slab_molecules = [molecule for item, molecule in enumerate(
+            molecules) if account_list[item] != layers_virtual - 1]
         delete_sites = utils.reduced_sites(slab_molecules, slab_incline)
         delete_list = []
 
@@ -316,7 +338,8 @@ class OrganicSlabGenerator(SlabGenerator):
                     delete_list.append(i)
                     break
         slab_incline.remove_sites(delete_list)
-        file_name = os.path.join(self.working_directory, 'one_layer.POSCAR.vasp')
+        file_name = os.path.join(
+            self.working_directory, 'one_layer.POSCAR.vasp')
         Poscar(slab_incline.get_sorted_structure()).write_file(file_name)
 
         # find the structure, next we need to find the periodicity
@@ -327,7 +350,8 @@ class OrganicSlabGenerator(SlabGenerator):
         return structure, delta_cart
 
     def _surface_termination(self, one_layer_slab, delta_move, users_define_layers=None):
-        file_name = os.path.join(self.working_directory, "one_layer_temp.POSCAR.vasp")
+        file_name = os.path.join(
+            self.working_directory, "one_layer_temp.POSCAR.vasp")
         Poscar(one_layer_slab.get_sorted_structure()).write_file(file_name)
         one_layer_temp = io.read(file_name)
         os.remove(file_name)
@@ -337,7 +361,8 @@ class OrganicSlabGenerator(SlabGenerator):
         else:
             delta = delta_move
         one_layer_temp.center(vacuum=1000, axis=2)
-        file_name = os.path.join(self.working_directory," one_layer_temp.POSCAR.vasp")
+        file_name = os.path.join(
+            self.working_directory, " one_layer_temp.POSCAR.vasp")
         io.write(file_name, images=one_layer_temp)
         utils.modify_poscar(file_name)
         one_layer = mg.Structure.from_file(file_name)
@@ -346,7 +371,8 @@ class OrganicSlabGenerator(SlabGenerator):
         one_layer_sg = StructureGraph.with_local_env_strategy(
             one_layer, JmolNN())
         bulk_sg = one_layer_sg * (1, 1, 1)
-        subgraphs, molecules = utils.get_bulk_subgraphs(bulk_structure_sg=bulk_sg)
+        subgraphs, molecules = utils.get_bulk_subgraphs(
+            bulk_structure_sg=bulk_sg)
         highest_z_locations = [np.max(np.array(one_layer.lattice.get_fractional_coords(molecule.cart_coords))[:, 2])
                                for molecule in molecules]
         highest_species = [
@@ -383,7 +409,8 @@ class OrganicSlabGenerator(SlabGenerator):
 
         slab_temp_list = []
         for index, slab in enumerate(slab_list):
-            file_name = os.path.join(self.working_directory, "primitive_onelayer_" + str(index) + ".POSCAR.vasp")
+            file_name = os.path.join(
+                self.working_directory, "primitive_onelayer_" + str(index) + ".POSCAR.vasp")
             Poscar(slab.get_sorted_structure()).write_file(file_name)
             slab_temp = io.read(file_name)
             os.remove(file_name)
@@ -391,7 +418,8 @@ class OrganicSlabGenerator(SlabGenerator):
             slab_temp_list.append(slab_temp)
 
         for index, slab_temp in enumerate(slab_temp_list):
-            file_name = os.path.join(self.working_directory, "primitive_onelayer_" + str(index) + ".POSCAR.vasp")
+            file_name = os.path.join(
+                self.working_directory, "primitive_onelayer_" + str(index) + ".POSCAR.vasp")
             # slab_temp.set_cell(cell)
             io.write(file_name, images=slab_temp)
             utils.modify_poscar(file_name)
@@ -400,9 +428,8 @@ class OrganicSlabGenerator(SlabGenerator):
         return slab_list
 
 
-def task(name, initial_structure, miller_index, layers, vacuum,
+def atomic_task(name, initial_structure, miller_index, layers, vacuum,
          supercell_size, format_string):
-
     """
     Multiprocess task to cleave multiple planes with different layers.
     Parameters
@@ -421,7 +448,7 @@ def task(name, initial_structure, miller_index, layers, vacuum,
     supercell_size : list of int, [a, b, 1]
         Make a (a * b * 1) supercell.
     """
-    format_dict = {'FHI':'in', 'VASP':'POSCAR', 'CIF':'cif'}
+    format_dict = {'FHI': 'in', 'VASP': 'POSCAR', 'CIF': 'cif'}
     # Create working directory to isolate the workflow
     dir_name = '{}_{}'.format(name, "".join(str(int(x))
                                             for x in miller_index))
@@ -447,7 +474,8 @@ def task(name, initial_structure, miller_index, layers, vacuum,
                                                                  for x in miller_index), layer, i, format_dict[format_string]), slab_ase)
     shutil.rmtree(working_dir)
 
-def cleave_planes(structure_path, structure_name, vacuum_size, list_of_layers, highest_index, supercell_size, format_string):
+
+def cleave_for_surface_energies(structure_path, structure_name, vacuum_size, list_of_layers, highest_index, supercell_size, format_string):
     initial_structure = read(structure_path)
     if not os.path.isdir(structure_name):
         os.mkdir(structure_name)
@@ -455,7 +483,7 @@ def cleave_planes(structure_path, structure_name, vacuum_size, list_of_layers, h
     p = Pool()
     print("{} unique planes are found".format(len(up.unique_idx)))
     for miller_index in up.unique_idx:
-        p.apply_async(task, args=(
-            structure_name, initial_structure, miller_index, list_of_layers, vacuum_size, supercell_size, format))
+        p.apply_async(atomic_task, args=(
+            structure_name, initial_structure, miller_index, list_of_layers, vacuum_size, supercell_size, format_string))
     p.close()
     p.join()

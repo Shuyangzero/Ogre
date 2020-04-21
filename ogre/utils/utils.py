@@ -1,3 +1,5 @@
+# -*- coding: UTF-8 -*-
+
 import math
 import pymatgen as mg
 from ase.utils import gcd, basestring
@@ -82,15 +84,18 @@ def surface(lattice, indices, layers, tol=1e-10, termination=0):
             if item == 0:
                 millers[index] = 10 ** 9  # make zeros large numbers
             elif pt == [0, 0, 0]:  # for numerical stability
-                pt = list(cell[index] / float(item) / np.linalg.norm(cell[index]))
+                pt = list(cell[index] / float(item) /
+                          np.linalg.norm(cell[index]))
         h1, k1, l1 = millers
         N = np.array(cell[0] / h1 + cell[1] / k1 + cell[2] / l1)
         n = N / np.linalg.norm(N)  # making a unit vector normal to cut plane
-        d = [np.round(np.dot(n, (a - pt)), 4) for a in lattice.get_scaled_positions()]
+        d = [np.round(np.dot(n, (a - pt)), 4)
+             for a in lattice.get_scaled_positions()]
         d = set(d)
         d = sorted(list(d))
         d = [0] + d  # distances of atoms from cut plane
-        displacement = (h * cell[0] + k * cell[1] + l * cell[2]) * d[termination]
+        displacement = (h * cell[0] + k * cell[1] +
+                        l * cell[2]) * d[termination]
         lattice1.positions += displacement
         lattice = lattice1
 
@@ -240,7 +245,8 @@ def handle_with_molecules(slab_move, delta, down=True):
         coords = [slab_supercell_sg.structure[n].coords
                   for n in subgraph.nodes()]
         # get the frac_cood of every atom for every molecules
-        coord_z_list = [slab_move.lattice.get_fractional_coords(coord)[-1] for coord in coords]
+        coord_z_list = [slab_move.lattice.get_fractional_coords(
+            coord)[-1] for coord in coords]
         if down is True:
             temp = [coord_z < 0.5 for coord_z in coord_z_list]
         else:
@@ -299,7 +305,8 @@ def Find_Broken_Molecules(slab, sg, species_intact, coords_intact, unique_bulk_s
     slab_molecules = double_screen(slab_molecules, sg)
 
     # the molecules in slab_original would be the template
-    print("The number of molecules that need to be fixed : " + str(len(slab_molecules)))
+    print("The number of molecules that need to be fixed : " +
+          str(len(slab_molecules)))
     # slab_molecules are the molecules that are broken and need to be fixed
 
     delete_sites = reduced_sites(slab_molecules, slab)
@@ -433,10 +440,12 @@ def get_broken_molecules(self, bulk_subgraphs, use_weights=False):
     return molecules
 
     # now define how we test for isomorphism
+
+
 def node_match(n1, n2):
     return n1['specie'] == n2['specie']
 
-            
+
 def get_bulk_molecules(self, use_weights=False):
     # get rid of the repetitve molecule in bulk, only left with unique molecule######
     """
@@ -677,6 +686,7 @@ def get_bulk_subgraphs(bulk_structure_sg):
         molecules.append(molecule)
     return super_subgraphs, molecules
 
+
 def get_bulk_subgraphs_unique(bulk_structure_sg):
     """get unique subgraphs of bulk based on graph algorithm.
         This function would only return unique molecules and its graphs,
@@ -760,7 +770,8 @@ def get_slab_different_subgraphs(slab_supercell_sg, unique_super_bulk_subgraphs)
     print("molecule_subgraphs : ", len(molecule_subgraphs))
     for subgraph in molecule_subgraphs:
         for n in subgraph:
-            subgraph.add_node(n, specie=str(slab_supercell_sg.structure[n].specie))
+            subgraph.add_node(n, specie=str(
+                slab_supercell_sg.structure[n].specie))
 
     nm = iso.categorical_node_match("specie", "ERROR")
     different_subgraphs = []
@@ -875,7 +886,8 @@ def brokenMolecules_and_corresspoundingIntactMolecules(new_different_subgraphs,
             unique_subgraph_species = []
             unique_weights_all = []
             for n, nbrs in unique_subgraph.adjacency():
-                unique_subgraph_species.append(unique_subgraph.node[n]['specie'])
+                unique_subgraph_species.append(
+                    unique_subgraph.node[n]['specie'])
                 weights = []
                 for nbr, eattr in nbrs.items():
                     weights.append(eattr['weight'])
@@ -919,7 +931,8 @@ def fix_broken_molecules(qualified_subgraphs,
             nodes_qualified_subgraphs.append(n)
             neibs = []
             weights = []
-            qualified_subgraphs_species.append(qualified_subgraphs[i].node[n]['specie'])
+            qualified_subgraphs_species.append(
+                qualified_subgraphs[i].node[n]['specie'])
             for nbr, eattr in nbrs.items():
                 neibs.append(nbr)
                 weights.append(eattr['weight'])
@@ -933,7 +946,8 @@ def fix_broken_molecules(qualified_subgraphs,
             nodes_qualified_unique_subgraphs.append(n)
             neibs = []
             weights = []
-            qualified_unique_subgraphs_species.append(qualified_unique_subgraphs[i].node[n]['specie'])
+            qualified_unique_subgraphs_species.append(
+                qualified_unique_subgraphs[i].node[n]['specie'])
             for nbr, eattr in nbrs.items():
                 neibs.append(nbr)
                 weights.append(eattr['weight'])
@@ -958,8 +972,10 @@ def fix_broken_molecules(qualified_subgraphs,
                             has1 = qualified_subgraphs_nodes_neibs[t][a_index] in node1
                             has2 = qualified_unique_subgraphs_nodes_neibs[k][index] in node2
                             if abs(weight - a_weight) / weight < 1e-5 and has1 is False and has2 is False:
-                                node1.append(qualified_subgraphs_nodes_neibs[t][a_index])
-                                node2.append(qualified_unique_subgraphs_nodes_neibs[k][index])
+                                node1.append(
+                                    qualified_subgraphs_nodes_neibs[t][a_index])
+                                node2.append(
+                                    qualified_unique_subgraphs_nodes_neibs[k][index])
                                 account += 1
                                 break
                 if account >= 3:
@@ -996,7 +1012,8 @@ def fix_broken_molecules(qualified_subgraphs,
                     if relative2[0, m] == 0 and relative2[1, m] == 0 and relative2[2, m] == 0:
                         relative2[0, m] = 1e-9
                         relative2[2, m] = -1e-9
-                rotationMatrix = np.dot(relative1.T, np.linalg.inv(relative2.T))
+                rotationMatrix = np.dot(
+                    relative1.T, np.linalg.inv(relative2.T))
             else:
                 print('failed')
                 sys.exit()
@@ -1067,8 +1084,10 @@ def put_everyatom_into_cell(slab):
         delete_list.append(i)
     slab.remove_sites(delete_list)
     for site in sites:
-        slab.append(species=site.specie, coords=site.coords, coords_are_cartesian=True)
+        slab.append(species=site.specie, coords=site.coords,
+                    coords_are_cartesian=True)
     return slab
+
 
 def less_fix_broken_molecules(less_broken_subgraphs, less_intact_subgraphs,
                               bulk_super_structure_sg,
@@ -1085,7 +1104,8 @@ def less_fix_broken_molecules(less_broken_subgraphs, less_intact_subgraphs,
             nodes_broken_subgraphs.append(n)
             neibs = []
             weights = []
-            broken_subgraphs_species.append(less_broken_subgraphs[i].node[n]['specie'])
+            broken_subgraphs_species.append(
+                less_broken_subgraphs[i].node[n]['specie'])
             for nbr, eattr in nbrs.items():
                 neibs.append(nbr)
                 weights.append(eattr['weight'])
@@ -1099,7 +1119,8 @@ def less_fix_broken_molecules(less_broken_subgraphs, less_intact_subgraphs,
             nodes_intact_subgraphs.append(n)
             neibs = []
             weights = []
-            intact_subgraphs_species.append(less_intact_subgraphs[i].node[n]['specie'])
+            intact_subgraphs_species.append(
+                less_intact_subgraphs[i].node[n]['specie'])
             for nbr, eattr in nbrs.items():
                 neibs.append(nbr)
                 weights.append(eattr['weight'])
@@ -1127,7 +1148,8 @@ def less_fix_broken_molecules(less_broken_subgraphs, less_intact_subgraphs,
                                         and less_broken_subgraphs[i].\
                                         node[nodes1[index + 1]]['specie'] == less_intact_subgraphs[i].\
                                         node[intact_subgraphs_nodes_neibs[k][index_intact]]['specie']:
-                                    nodes2.append(intact_subgraphs_nodes_neibs[k][index_intact])
+                                    nodes2.append(
+                                        intact_subgraphs_nodes_neibs[k][index_intact])
                         if len(nodes2) == 3:
                             Find = True
                             break
@@ -1184,7 +1206,8 @@ def less_fix_broken_molecules(less_broken_subgraphs, less_intact_subgraphs,
                     if relative2[0, m] == 0 and relative2[1, m] == 0 and relative2[2, m] == 0:
                         relative2[0, m] = 1e-9
                         relative2[2, m] = -1e-9
-                rotationMatrix = np.dot(relative1.T, np.linalg.inv(relative2.T))
+                rotationMatrix = np.dot(
+                    relative1.T, np.linalg.inv(relative2.T))
             else:
                 print('failed')
                 sys.exit()
