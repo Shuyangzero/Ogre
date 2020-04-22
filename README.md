@@ -60,7 +60,7 @@ consecutive_step = 2
 
 To run ogre
 ```bash
-python run_ogre.py --filename ogre.config
+python runOgre.py --filename ogre.config
 ```
 To launch DFT calculations
 ```bash
@@ -78,5 +78,5 @@ python MBDExtract.py
 ```
 To run ogreSWAMP
 ```bash
-python run_ogreSWAMP.py --filename ogreSWAMP.config
+python runOgreSWAMP.py --filename ogreSWAMP.config
 ```
