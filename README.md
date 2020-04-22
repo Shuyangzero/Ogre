@@ -11,12 +11,6 @@ python setup.py install
 This code might crash if you use the newest version of pymatgen, so please use the version specified in setup.py
 
 ## Example
-
-For imported paths to work correctly, do
-```bash
-source init.sh
-```
-
 All configurations are stored in the .config file
 Ogre is for cleaving the surfaces, ogreSWAMP is for plotting surface energy convergence plots and Wulff diagram.
 
