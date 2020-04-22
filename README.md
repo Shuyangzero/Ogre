@@ -26,6 +26,7 @@ format = FHI
 ; Format can be FHI, VASP or CIF
 [methods]
 cleave_option = 1
+; 0: cleave for a single surface, 1: cleave for surface energy calculations
 [parameters]
 layers = 1-9 13 14
 ; Layers could be specified as combination of start-end or separate numbers by space
@@ -46,7 +47,7 @@ structure_path = structures/relaxed_structures/ASPIRIN.cif
 structure_name = aspirin
 [methods]
 fitting_method = 0
-; 0 is linear method, 1 is Boettger method.
+; 0: linear method, 1: Boettger method.
 [Wulff]
 Wulff_plot = True
 ; Wehther to plot the Wulff diagram
@@ -67,7 +68,7 @@ To launch DFT calculations
 #Launch PBE+TS, please modify the setting in the script, same for the following scripts.
 python AimsBatchCAlc.py
 
-#Extract the data from PBE+TS and store in .json file 
+#Extract the data from PBE+TS and store in .json file
 python AimsExtractor.py
 
 #Launch PBE+MBD
