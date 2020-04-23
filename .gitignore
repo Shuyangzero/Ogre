@@ -8,11 +8,6 @@ build
 extract.sh
 dist
 *.egg-info
-ogre/output
-example_POSCARs/ASE_surface.POSCAR.vasp
-example_POSCARs/Ogre_Surface.POSCAR.vasp
-example_POSCARs/POSCAR.vasp
-ogre/Ogre*
 output
 aspirin_*
 ASPIRIN/
@@ -24,6 +19,5 @@ PENCEN/
 QQQCIG04/
 TETCEN/
 UNOGIN03/
-SCF/
 
 
