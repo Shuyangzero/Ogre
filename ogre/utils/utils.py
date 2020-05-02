@@ -589,7 +589,7 @@ def updatePOSCAR(output_file):
     """This function is used to correct the output file (POSCAR) of ase.
     Parameters:
     ----------
-    output_file : (string) the file of surface writen by the write function of ase.
+    output_file : (string) the file of surface written by the write function of ase.
 
     Returns:
     -------
