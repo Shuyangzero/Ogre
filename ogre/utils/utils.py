@@ -589,11 +589,13 @@ def updatePOSCAR(output_file):
     """This function is used to correct the output file (POSCAR) of ase.
     Parameters:
     ----------
-    output_file : (string) the file of surface written by the write function of ase.
+    output_file : str
+        The file of surface written by the write function of ase.
 
     Returns:
     -------
-    file : (string) the file that is corrected.
+    file : str
+        The file that is corrected.
     """
     with open(output_file, 'r') as original_file:
         lines = original_file.readlines()
@@ -626,11 +628,11 @@ def edge_match(e1, e2):
     """the strategy for edge matching in is_isomorphic.
     Parameters:
     ----------
-    e1, e2 : (edge).
+    e1, e2 : edge).
 
     Returns:
     -------
-    True or false : (bool)
+    True or false : bool
         based on whether the length of bonds are the same or close to each other.
     """
     return abs(e1['weight'] - e2['weight']) / e2['weight'] < 1e-5
@@ -723,17 +725,17 @@ def get_slab_different_subgraphs(slab_supercell_sg, unique_super_bulk_subgraphs)
     ----------
     slab_supercell_sg : nx.StructureGraph,
         the graph of the whole slabs.
-        (Note: In order to thoughtoutly describe the graph,
-        the slab_supercell_sg = (3, 3, 1) * slab_sg)
-    unique_super_bulk_subgraphs : (list).
+        Note: In order to thoughtoutly describe the graph,
+        the slab_supercell_sg = (3, 3, 1) * slab_sg
+    unique_super_bulk_subgraphs : list.
 
     Returns:
     -------
-    different_subgraphs : (list)
+    different_subgraphs : list
         [different_subgraph, ...], which is the list of subgraphs that
         are different from those in bulk. In this function,
         we would only find the different subgraphs based on its species.
-    slab_molecules : (list)
+    slab_molecules : list
         [slab_molecule, ...], slab_molecule is the mg.Molecule of diffenert_subgraphs.
     """
     slab_supercell_sg_graph = nx.Graph(slab_supercell_sg.graph)
