@@ -18,7 +18,7 @@ Ogre is for cleaving the surfaces, ogreSWAMP is for plotting surface energy conv
 ogre.config:
 
 
-```bash
+```
 [io]
 structure_path = ./structures/relaxed_structures/aspirin.cif
 structure_name = aspirin
@@ -26,7 +26,7 @@ format = FHI
 ; Format can be FHI, VASP or CIF
 [methods]
 cleave_option = 1
-; 0: cleave for a single surface, 1: cleave for surface energy calculations
+; 0: cleave a single surface, 1: cleave surfaces for urface energy calculations
 [parameters]
 layers = 1-9 13 14
 ; Layers could be specified as combination of start-end or separate numbers by space
@@ -63,7 +63,7 @@ To run ogre
 ```bash
 python runOgre.py --filename ogre.config
 ```
-To launch DFT calculations
+To launch DFT calculations, use scripts under scripts/
 ```bash
 #Launch PBE+TS, please modify the setting in the script, same for the following scripts.
 python AimsBatchCAlc.py

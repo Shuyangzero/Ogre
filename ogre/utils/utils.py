@@ -20,7 +20,7 @@ from pymatgen.analysis.local_env import JmolNN
 import os
 import sys
 import time
-from tqdm import tqdm
+from functools import wraps
 
 
 def modify_poscar(file):
@@ -40,7 +40,6 @@ def modify_poscar(file):
     os.rename(file+'.new', file)
 
 
-# this is a self_build method for generating the universal surface
 def surface(lattice, indices, layers, tol=1e-10, termination=0):
     """Create surface from a given lattice and Miller indices.
 
@@ -128,8 +127,6 @@ def surface(lattice, indices, layers, tol=1e-10, termination=0):
         c3 = (b, a * p, a * q)
 
     surf = build(lattice, np.array([c1, c2, c3]), layers, tol)
-    # if vacuum is not None:
-    #     surf.center(vacuum=vacuum, axis=2)
     return surf
 
 
@@ -305,8 +302,8 @@ def Find_Broken_Molecules(slab, sg, species_intact, coords_intact, unique_bulk_s
     slab_molecules = double_screen(slab_molecules, sg)
 
     # the molecules in slab_original would be the template
-    print("The number of molecules that need to be fixed : " +
-          str(len(slab_molecules)))
+    #print("The number of molecules that need to be fixed : " +
+    #      str(len(slab_molecules)))
     # slab_molecules are the molecules that are broken and need to be fixed
 
     delete_sites = reduced_sites(slab_molecules, slab)
@@ -329,7 +326,7 @@ def Find_Broken_Molecules(slab, sg, species_intact, coords_intact, unique_bulk_s
 
     delete_list = []
     # remove intact molecules in the slab for convenience
-    print("Delete all atoms!")
+    #print("Delete all atoms!")
     for i, atom in enumerate(slab):
         delete_list.append(i)
     slab.remove_sites(delete_list)
@@ -346,7 +343,6 @@ def Find_Broken_Molecules(slab, sg, species_intact, coords_intact, unique_bulk_s
                 sites.append(curr_site)
     for site in sites:
         # add the broken molecules into the system
-        # print("Add new atom from the broken parts")
         slab.append(species=site.specie, coords=site.coords,
                     coords_are_cartesian=True)
     return slab
@@ -407,15 +403,6 @@ def get_broken_molecules(self, bulk_subgraphs, use_weights=False):
 
     start = time.time()
     for subgraph in molecule_subgraphs:
-        # check if the molecule has same number of atom with the bulk molecules
-
-        #num_atoms_bulk=[g.number_of_nodes() for g in bulk_subgraphs]
-
-        #present_by_num_atom=any(subgraph.number_of_nodes()==n for n in num_atoms_bulk)
-
-        # if  present_by_num_atom==False:
-        #    different_subgraphs.append(subgraph)
-        # else:
         already_present = [nx.is_isomorphic(subgraph, g,
                                             node_match=nm)
                            for g in bulk_subgraphs]
@@ -444,6 +431,16 @@ def get_broken_molecules(self, bulk_subgraphs, use_weights=False):
 
 
 def node_match(n1, n2):
+    """the strategy for node matching in is_isomorphic.
+    Parameters
+    ------
+    n1, n2 : node
+
+    Returns:
+    -------
+    True of false : bool
+        based on whether the species of two nodes are the same.
+    """
     return n1['specie'] == n2['specie']
 
 
@@ -484,25 +481,7 @@ def get_bulk_molecules(self, use_weights=False):
 
     # find subgraphs
     all_subgraphs = list(nx.connected_component_subgraphs(
-        supercell_sg.graph))  # takes networks undirected graph object
-    # for subs in all_subgraphs:
-    #    print("subgraphs is:",subs.nodes())
-    # as parameter,find all the subgraphs as networkx graph object for each component in the undirected graph.method in the list is
-    # graph generator
-
-    # discount subgraphs that lie across *supercell* boundaries
-    # these will subgraphs representing crystals
-    # why getting rid of the boundaries????????
-    '''
-        molecule_subgraphs = []
-        for subgraph in all_subgraphs:
-            intersects_boundary = any([d['to_jimage'] != (0, 0, 0)
-                                      for u, v, d in subgraph.edges(data=True)])
-                                    #subgraph.edges return edges as tuple with **point, neigbot,data**
-            if not intersects_boundary:
-                molecule_subgraphs.append(subgraph)
-                print("molecules not at boundary are:",subgraph)
-       '''
+        supercell_sg.graph))
     # add specie names to graph to be able to test for isomorphism
     for subgraph in all_subgraphs:
         for n in subgraph:
@@ -540,10 +519,6 @@ def get_bulk_molecules(self, use_weights=False):
                    in subgraph.nodes()]
 
         molecule = Molecule(species, coords)
-
-        # shift so origin is at center of mass
-        #molecule = molecule.get_centered_molecule()
-
         molecules.append(molecule)
 
     return molecules, unique_subgraphs
@@ -556,8 +531,12 @@ def isomorphic_to(self, other):
     another. In order to prevent problems with misdirected edges, both
     graphs are converted into undirected nx.Graph objects.
 
-    :param other: MoleculeGraph object to be compared.
-    :return: bool
+    Parameters:
+    ---------- 
+    other: MoleculeGraph object to be compared.
+    Returns:
+    -------
+    bool
     """
     if self.molecule.composition != other.molecule.composition:
         return False
@@ -590,25 +569,28 @@ def double_screen(slab_molecules, bulk_molecules):
     delete_list = []
     for bulk_molecule in bulk_molecules:
         for i, slab_molecule in enumerate(slab_molecules):
-            # print(i,len(slab_molecule))
             if is_isomorphic(bulk_molecule, slab_molecule):
                 delete_list.append(i)
     tmp = [x for i, x in enumerate(slab_molecules) if i not in delete_list]
     return tmp
 
-def print_run_time(func):  
-    def wrapper(*args, **kw):  
-        local_time = time.time()  
-        func(*args, **kw) 
-        print 'current Function [%s] run time is %.2f' % (func.__name__ ,time.time() - local_time)  
+
+def print_run_time(func):
+    @wraps(func)
+    def wrapper(*args, **kw):
+        local_time = time.time()
+        func(*args, **kw)
+        print('Current Function [%s] run time is %.2fs' %
+              (func.__name__, time.time() - local_time))
     return wrapper
-    
+
+
 def updatePOSCAR(output_file):
     """This function is used to correct the output file (POSCAR) of ase.
     Parameters:
     ----------
     output_file : (string) the file of surface writen by the write function of ase.
-    
+
     Returns:
     -------
     file : (string) the file that is corrected.
@@ -640,25 +622,13 @@ def updatePOSCAR(output_file):
             final_file.writelines(lines[i])
 
 
-def node_match(n1, n2):
-    """the strategy for node matching in is_isomorphic.
-    :param
-    ------
-    n1, n2 : (node).
-    :return
-    -------
-    True of false : (bool)
-        based on whether the species of two nodes are the same.
-    """
-    return n1['specie'] == n2['specie']
-
-
 def edge_match(e1, e2):
     """the strategy for edge matching in is_isomorphic.
-    :param
-    ------
+    Parameters:
+    ----------
     e1, e2 : (edge).
-    :return
+
+    Returns:
     -------
     True or false : (bool)
         based on whether the length of bonds are the same or close to each other.
@@ -756,7 +726,7 @@ def get_slab_different_subgraphs(slab_supercell_sg, unique_super_bulk_subgraphs)
         (Note: In order to thoughtoutly describe the graph,
         the slab_supercell_sg = (3, 3, 1) * slab_sg)
     unique_super_bulk_subgraphs : (list).
-    
+
     Returns:
     -------
     different_subgraphs : (list)
@@ -776,7 +746,7 @@ def get_slab_different_subgraphs(slab_supercell_sg, unique_super_bulk_subgraphs)
         if not intersets_boundary:
             molecule_subgraphs.append(subgraph)
 
-    print("molecule_subgraphs : ", len(molecule_subgraphs))
+    #print("molecule_subgraphs : ", len(molecule_subgraphs))
     for subgraph in molecule_subgraphs:
         for n in subgraph:
             subgraph.add_node(n, specie=str(
@@ -784,7 +754,7 @@ def get_slab_different_subgraphs(slab_supercell_sg, unique_super_bulk_subgraphs)
 
     nm = iso.categorical_node_match("specie", "ERROR")
     different_subgraphs = []
-    for subgraph in tqdm(molecule_subgraphs):
+    for subgraph in molecule_subgraphs:
         already_present = [nx.is_isomorphic(subgraph, g,
                                             node_match=nm)
                            for g in unique_super_bulk_subgraphs]
@@ -853,9 +823,7 @@ def weights_all_belong_to(all_weight1, all_weight2, species1, species2):
     species_2 = species2[:]
     while i < len(all_weight_1):
         find = False
-        # print("a", sorted(all_weight_1[i]))
         for j in range(len(all_weight_2)):
-            # print("b", sorted(all_weight_2[j]))
             if length_belong_to(all_weight_1[i], all_weight_2[j]) and species_1[i] == species_2[j]:
                 del all_weight_1[i]
                 del species_1[i]
@@ -866,9 +834,6 @@ def weights_all_belong_to(all_weight1, all_weight2, species1, species2):
                 break
         if not find:
             i += 1
-            # print("didn't find a!\n")
-        # else:
-            # print('\n')
     if account >= 2.0 / 3.0 * total:
         return True
     return False
@@ -879,9 +844,9 @@ def brokenMolecules_and_corresspoundingIntactMolecules(new_different_subgraphs,
     qualified_subgraphs = []
     qualified_unique_subgraphs = []
     # account = 1
-    print("trying to find the connection between broken molecules "
-          "and intact molecules")
-    for subgraph in tqdm(new_different_subgraphs):
+    #print("trying to find the connection between broken molecules "
+    #      "and intact molecules")
+    for subgraph in new_different_subgraphs:
         subgraph_species = []
         weights_all = []
         for n, nbrs in subgraph.adjacency():
@@ -902,22 +867,17 @@ def brokenMolecules_and_corresspoundingIntactMolecules(new_different_subgraphs,
                     weights.append(eattr['weight'])
                 unique_weights_all.append(weights)
             if not belong_to(subgraph_species, unique_subgraph_species):
-                # print("species not belongs")
                 continue
             else:
                 if not weights_all_belong_to(weights_all, unique_weights_all,
                                              subgraph_species,
                                              unique_subgraph_species):
-                    # print('weights not match')
                     continue
                 else:
                     find = True
                     qualified_subgraphs.append(subgraph)
                     qualified_unique_subgraphs.append(unique_subgraph)
                     break
-        # print(r'one loop is done {}\{}'.format(account,
-        #                                        len(new_different_subgraphs)))
-        # account += 1
         if find is False:
             print("can't find the qualified subgraphs")
             sys.exit()
@@ -930,8 +890,8 @@ def fix_broken_molecules(qualified_subgraphs,
                          slab_supercell_sg,
                          slab, c_frac_min, fixed_c_negative=False):
     molecules_new = []
-    print("trying to fix the broken molecules...")
-    for i in tqdm(range(len(qualified_subgraphs))):
+    #print("trying to fix the broken molecules...")
+    for i in range(len(qualified_subgraphs)):
         qualified_subgraphs_species = []
         qualified_subgraphs_nodes_neibs = []
         qualified_subgraphs_all_weights = []
@@ -1026,12 +986,9 @@ def fix_broken_molecules(qualified_subgraphs,
             else:
                 print('failed')
                 sys.exit()
-        # print('find the rotationMatrix')
         relative = np.array([np.array(bulk_super_structure_sg.structure[n].coords)
                              - np.array(coords2[0])
                              for n in qualified_unique_subgraphs[i].nodes()])
-        # print(node2[0], qualified_unique_subgraphs[i].nodes())
-        # print(rotationMatrix, relative)
         new_relatives = np.dot(rotationMatrix, relative.T).T
         coords = [np.array(coords1[0]) + new_relative
                   for new_relative in new_relatives]
@@ -1104,7 +1061,7 @@ def less_fix_broken_molecules(less_broken_subgraphs, less_intact_subgraphs,
                               slab, c_frac_min,
                               fixed_c_negative=True):
     molecules_new = []
-    for i in tqdm(range(len(less_broken_subgraphs))):
+    for i in range(len(less_broken_subgraphs)):
         broken_subgraphs_species = []
         broken_subgraphs_nodes_neibs = []
         broken_subgraphs_weights = []
@@ -1166,7 +1123,7 @@ def less_fix_broken_molecules(less_broken_subgraphs, less_intact_subgraphs,
                 # print('Find it')
                 break
         if Find is False:
-            print("Sucks")
+            #print("Sucks")
             sys.exit()
         rest_item = -1
         rest_index = -1
@@ -1220,12 +1177,9 @@ def less_fix_broken_molecules(less_broken_subgraphs, less_intact_subgraphs,
             else:
                 print('failed')
                 sys.exit()
-        # print('find the rotationMatrix')
         relative = np.array([np.array(bulk_super_structure_sg.structure[n].coords)
                              - np.array(coords2[0])
                              for n in less_intact_subgraphs[i].nodes()])
-        # print(node2[0], qualified_unique_subgraphs[i].nodes())
-        # print(rotationMatrix, relative)
         new_relatives = np.dot(rotationMatrix, relative.T).T
         coords = [np.array(coords1[0]) + new_relative
                   for new_relative in new_relatives]

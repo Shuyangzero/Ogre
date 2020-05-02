@@ -3,11 +3,11 @@ import argparse
 from configparser import ConfigParser
 from ase.io import read, write
 import os
-
+from ogre.utils.utils import print_run_time
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--filename', dest='filename', type=str)
+    parser.add_argument('--filename', dest='filename', default='ogre.config', type=str)
     return parser.parse_args()
 
 @print_run_time

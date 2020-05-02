@@ -140,8 +140,8 @@ class OrganicSlabGenerator(SlabGenerator):
         bulk_structure_sg = super_structure_sg * (3, 3, 3)
         unique_bulk_subgraphs, molecules = \
             utils.get_bulk_subgraphs_unique(bulk_structure_sg)
-        print("There would be {} different molecules in bulk".format(
-            str(len(molecules))))
+        #print("There would be {} different molecules in bulk".format(
+        #    str(len(molecules))))
         # get the slab via ase and deal with it via pymatgen
         os.remove(os.path.join(self.working_directory, 'bulk.POSCAR.vasp'))
         slab = surface(self.initial_structure,
@@ -199,7 +199,7 @@ class OrganicSlabGenerator(SlabGenerator):
             utils.modify_poscar(temp_file_name)
             slab_move = mg.Structure.from_file(temp_file_name)
             os.remove(temp_file_name)
-            print("No Broken molecules!")
+            #print("No Broken molecules!")
             try:
                 os.remove(os.path.join(self.working_directory,
                                        "ASE_surface.POSCAR.vasp"))
@@ -228,7 +228,7 @@ class OrganicSlabGenerator(SlabGenerator):
             utils.modify_poscar(temp_file_name)
             slab = mg.Structure.from_file(temp_file_name)
             os.remove(temp_file_name)
-            print("No Broken molecules!")
+            #print("No Broken molecules!")
             try:
                 os.remove(os.path.join(self.working_directory,
                                        "ASE_surface.POSCAR.vasp"))
@@ -269,8 +269,8 @@ class OrganicSlabGenerator(SlabGenerator):
                     slab_supercell_sg, unique_bulk_subgraphs)
             sg = molecules
             slab_molecules = utils.double_screen(slab_molecules, sg)
-            print("The number of molecules that need to be fixed : ",
-                  len(slab_molecules))
+            #print("The number of molecules that need to be fixed : ",
+            #      len(slab_molecules))
             # slab_molecules are the molecules that are broken and need to be fixed
             delete_sites = utils.reduced_sites(slab_molecules, slab)
             delete_list = []
@@ -472,8 +472,8 @@ def atomic_task(name, initial_structure, miller_index, list_of_layers, vacuum_si
         os.mkdir(dir_name)
     working_dir = os.path.abspath('./{}'.format(dir_name))
 
-    print("start {}".format("".join(str(int(x))
-                                    for x in miller_index)))
+    #print("start {}".format("".join(str(int(x))
+    #                                for x in miller_index)))
 
     generator = OrganicSlabGenerator(
         initial_structure, miller_index, list_of_layers, vacuum_size, supercell_size, working_dir)
@@ -522,8 +522,12 @@ def cleave_for_surface_energies(structure_path, structure_name, vacuum_size, lis
     up = UniquePlanes(initial_structure, index=highest_index, verbose=False)
     p = Pool()
     print("{} unique planes are found".format(len(up.unique_idx)))
+    pbar = tqdm(total=len(up.unique_idx))
+    def update(*a):
+        nonlocal pbar
+        pbar.update()
     for miller_index in up.unique_idx:
         p.apply_async(atomic_task, args=(
-            structure_name, initial_structure, miller_index, list_of_layers, vacuum_size, supercell_size, format_string))
+        structure_name, initial_structure, miller_index, list_of_layers, vacuum_size, supercell_size, format_string), callback=update)
     p.close()
     p.join()
