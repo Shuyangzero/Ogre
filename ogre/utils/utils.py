@@ -362,8 +362,9 @@ def get_broken_molecules(self, bulk_subgraphs, use_weights=False):
     present in the crystal (a duplicate defined as an
     isomorphic subgraph).
 
-
-    :return: list of nonunique broken Molecules in Structure
+    Returns:
+    -------
+    : list of nonunique broken Molecules in Structure
     """
 
     # creating a supercell is an easy way to extract
@@ -456,7 +457,7 @@ def get_bulk_molecules(self, use_weights=False):
     present in the crystal (a duplicate defined as an
     isomorphic subgraph).
 
-    :param
+    Parameters:
     ------
     use_weights: (bool) If True, only treat subgraphs
         as isomorphic if edges have the same weights. Typically,
@@ -465,7 +466,7 @@ def get_bulk_molecules(self, use_weights=False):
         lengths can differ. This is a fairly robust approach,
         but will treat e.g. enantiomers as being duplicates.
 
-    :return
+    Returns:
     -------
     list of unique Molecules in Structure
     """
@@ -598,10 +599,11 @@ def double_screen(slab_molecules, bulk_molecules):
 
 def updatePOSCAR(output_file):
     """This function is used to correct the output file (POSCAR) of ase.
-    :param
-    -----
+    Parameters:
+    ----------
     output_file : (string) the file of surface writen by the write function of ase.
-    :return
+    
+    Returns:
     -------
     file : (string) the file that is corrected.
     """
@@ -741,14 +743,15 @@ def get_bulk_subgraphs_unique(bulk_structure_sg):
 def get_slab_different_subgraphs(slab_supercell_sg, unique_super_bulk_subgraphs):
     """this function is used to find all the subgraphs in slab that
         are different from those in bulk.
-    :param
-    -----
+    Parameters:
+    ----------
     slab_supercell_sg : nx.StructureGraph,
         the graph of the whole slabs.
         (Note: In order to thoughtoutly describe the graph,
         the slab_supercell_sg = (3, 3, 1) * slab_sg)
     unique_super_bulk_subgraphs : (list).
-    :return
+    
+    Returns:
     -------
     different_subgraphs : (list)
         [different_subgraph, ...], which is the list of subgraphs that

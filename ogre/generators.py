@@ -21,6 +21,7 @@ import networkx as nx
 
 class SlabGenerator(ABC):
     def __init__(self, initial_structure, miller_index, list_of_layers, vacuum_size, supercell_size, working_directory):
+
         self.initial_structure = initial_structure
         self.miller_index = miller_index
         self.list_of_layers = list_of_layers
@@ -32,14 +33,7 @@ class SlabGenerator(ABC):
     def cleave(self):
         None
 
-
-class InorganicSlabGenerator(SlabGenerator):
-    def __init__(self, initial_structure, miller_index, list_of_layers, vacuum_size, supercell_size, working_directory):
-        super().__init__(initial_structure, miller_index, list_of_layers,
-                         vacuum_size, supercell_size, working_directory)
-
-    def cleave(self):
-        None
+# TODO: create an inorganic slab generator.
 
 
 class OrganicSlabGenerator(SlabGenerator):
@@ -47,7 +41,33 @@ class OrganicSlabGenerator(SlabGenerator):
         super().__init__(initial_structure, miller_index, list_of_layers,
                          vacuum_size, supercell_size, working_directory)
 
+        """Initialize the organic slab generator to cleave the surfaces for certain number of layers and Miller index.
+
+        Parameters
+        ----------
+        initial_structure: ASE Atoms structure.
+            The initial bulk structure to be cleaved.
+        miller_index: List[int]: [h, k, l]
+            The Miller index of the surface plane.
+        list_of_layers: List[int]. 
+            A list of layers to cleave.
+        vacuum_size: float
+            Height of vacuum size, unit: Angstrom. Note that the vacuum size
+            would be added to both the bottom and the top of surface.
+        supercell_size: List[int]: [a, b, 1]
+            Make a (a * b * 1) supercell.
+        working_directory: str
+            The path to save the resulting slab structures.
+        """
+
     def cleave(self):
+        """Cleave the slab and repair the broken molecules.
+
+        Returns:
+        -------
+        slab_list: List[List[structures]]
+        list of list of slabs for the required list of layers. Each list contains one or multiple terminations.
+        """
         one_layer_slab, delta_cart = self._cleave_one_layer()
         slab_list = []
         one_layer_slab = one_layer_slab[0]
@@ -132,8 +152,8 @@ class OrganicSlabGenerator(SlabGenerator):
         write(file_name, format=format_, images=slab)
         utils.modify_poscar(file_name)
         slab_temp = mg.Structure.from_file(file_name)
-        # attention! the slab is assigned to a new object
 
+        # attention! the slab is assigned to a new object
         virtual_layers = 4
         slab = utils.surface(
             self.initial_structure, self.miller_index, layers=virtual_layers)
@@ -247,7 +267,6 @@ class OrganicSlabGenerator(SlabGenerator):
             different_subgraphs_in_slab, slab_molecules = \
                 utils.get_slab_different_subgraphs(
                     slab_supercell_sg, unique_bulk_subgraphs)
-            # sg = super_structure_sg.get_subgraphs_as_molecules()
             sg = molecules
             slab_molecules = utils.double_screen(slab_molecules, sg)
             print("The number of molecules that need to be fixed : ",
@@ -264,9 +283,6 @@ class OrganicSlabGenerator(SlabGenerator):
             slab.remove_sites(delete_list)
         except ValueError:
             print("No Broken molecules!")
-
-        # for i in range(len(species_intact)):
-        #     slab.append(species_intact[i], coords_intact[i], coords_are_cartesian=True)
 
         file_name = os.path.join(
             self.working_directory, "POSCAR_move_final.vasp")
@@ -428,25 +444,25 @@ class OrganicSlabGenerator(SlabGenerator):
         return slab_list
 
 
-def atomic_task(name, initial_structure, miller_index, layers, vacuum,
-         supercell_size, format_string):
-    """
-    Multiprocess task to cleave multiple planes with different layers.
+def atomic_task(name, initial_structure, miller_index, list_of_layers, vacuum_size,
+                supercell_size, format_string):
+    """Atomic task to cleave a surface plane with certain Miller index for different layers.
+
     Parameters
     ----------
-    name: File nam to save.
-    struc : Atoms structure or list of atoms structures
-        The original bulk structure.
-    miller_index : list of int, [h, k, l]
-        The Miller Index of target surface.
-    layers : a list of layer to cleave.
-    vacuum : double
-        Height of vacuum layer, unit: Angstrom. Notice that the vacuum layer
+    initial_structure: ASE Atoms structure.
+        The initial bulk structure to be cleaved.
+    miller_index: List[int]: [h, k, l]. 
+        The Miller index of the surface plane.
+    list_of_layers: List[int]. 
+        A list of layers to cleave.
+    vacuum_size: float
+        Height of vacuum size, unit: Angstrom. Note that the vacuum size
         would be added to both the bottom and the top of surface.
-    working_dir : string
-        The path of original bulk's file.
-    supercell_size : list of int, [a, b, 1]
+    supercell_size: List[int]: [a, b, c]
         Make a (a * b * 1) supercell.
+    working_directory: str
+        The path to save the resulting slab structures.
     """
     format_dict = {'FHI': 'in', 'VASP': 'POSCAR', 'CIF': 'cif'}
     # Create working directory to isolate the workflow
@@ -460,22 +476,46 @@ def atomic_task(name, initial_structure, miller_index, layers, vacuum,
                                     for x in miller_index)))
 
     generator = OrganicSlabGenerator(
-        initial_structure, miller_index, layers, vacuum, supercell_size, working_dir)
+        initial_structure, miller_index, list_of_layers, vacuum_size, supercell_size, working_dir)
     slab_lists = generator.cleave()
 
-    for layer, slab_list in zip(layers, slab_lists):
+    for layers, slab_list in zip(list_of_layers, slab_lists):
         for i, slab in enumerate(slab_list):
             poscar_str = "{}/POSCAR.{}.{}.{}.{}".format(name, name, "".join(str(int(x))
-                                                                            for x in miller_index), layer, i)
+                                                                            for x in miller_index), layers, i)
             Poscar(slab).write_file(poscar_str)
             slab_ase = read(poscar_str)
             os.remove(poscar_str)
             write("{}/{}.{}.{}.{}.{}".format(name, name, "".join(str(int(x))
-                                                                 for x in miller_index), layer, i, format_dict[format_string]), slab_ase)
+                                                                 for x in miller_index), layers, i, format_dict[format_string]), slab_ase)
     shutil.rmtree(working_dir)
 
 
 def cleave_for_surface_energies(structure_path, structure_name, vacuum_size, list_of_layers, highest_index, supercell_size, format_string):
+    """Multiprocess launcher to cleave a surface plane with certain Miller index for different layers.
+
+    Parameters
+    ----------
+    structure_path: str
+        The path of initial bulk structure.
+    structure_name: str
+        The structure's name, used to create the directory.
+    highest_index: int
+        The highest value of Miller index used to calculate the Wulff shape.
+    miller_index: List[int]: [h, k, l].
+        The Miller index of the surface plane.
+    list_of_layers: List[int].
+        A list of layers to cleave.
+    vacuum_size: float
+        Height of vacuum size, unit: Angstrom. Note that the vacuum size
+        would be added to both the bottom and the top of surface.
+    supercell_size: List[int]: [a, b, c]
+        Make a (a * b * 1) supercell.
+    working_directory: str
+        The path to save the resulting slab structures.
+    format_string: str
+        The format of output file, could be "VASP", "FHI" or "CIF".
+    """
     initial_structure = read(structure_path)
     if not os.path.isdir(structure_name):
         os.mkdir(structure_name)

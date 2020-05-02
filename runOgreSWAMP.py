@@ -29,14 +29,6 @@ def parse_arguments():
 
 
 def Boettger(ax, layers, energies, area, tag):
-    """
-    Arguments
-    ---------
-    use_layers: int
-        For Boettger formula to always use this layer and the layer before it
-        for the calculation of the bulk energy.
-
-    """
     x, y = [], []
     for i in range(2, len(layers)):
         bulk = (energies[i] - energies[i-1]) / (layers[i] - layers[i-1])
@@ -176,6 +168,21 @@ def main():
 
 
 def Wulff_plot(structure_name, structure_path, projected_direction, fitting_method, energy_results):
+    """Plot Wulff shape by pymatgen.
+
+    Parameters:
+    ----------
+        structure_name: str
+            Structure's name.
+        structure_path: str
+            The path of initial bulk structure.
+        projected_direction: List[int]
+            The projected direction for the Wulff shape.
+        fitting_method: int 
+            0: linear method, 1: Boettger method.
+        energy_results: dict
+            Dictionary that contains the surface energy values for TS and MBD with linear and Boettger method.
+    """
     cif = CifParser(structure_path)
     lattice = cif.get_structures()[0].lattice
     print(lattice.a, lattice.b, lattice.c)
