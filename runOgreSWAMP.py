@@ -23,8 +23,10 @@ from configparser import ConfigParser
 
 def parse_arguments():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--filename', dest='filename',
+    parser.add_argument('--filename', dest='filename', default='ogreSWAMP.config',
                         type=str)
+    parser.add_argument('--fontsize', dest='fontsize', default=25,
+                        type=int)
     return parser.parse_args()
 
 
@@ -36,14 +38,11 @@ def Boettger(ax, layers, energies, area, tag):
         y.append(16000*(energies[i] - layers[i] * bulk)/(2*area))
     ax.plot(x, y, c="r" if tag == "mbd" else "g", label="{} Boettger".format(
         tag.upper()), linewidth=7.0)
-    #ax.scatter(x, y, c="r" if tag == "mbd" else "g")
-
     return x, y
 
 
 def Linear(ax, layers, energies, area, tag):
     x, y = [], []
-
     for i in range(2, len(layers)):
         if i < 2:
             slope, intercept, r_value, p_value, std_err = \
@@ -53,30 +52,32 @@ def Linear(ax, layers, energies, area, tag):
                 stats.linregress(layers[i-2:i+1], energies[i-2:i+1])
         x.append(layers[i])
         y.append(16000*intercept/(2*area))
-
     ax.plot(x, y, c="b" if tag == "mbd" else "brown", label="{} Linear".format(
         tag.upper()), linewidth=7.0, linestyle='dashed')
-    #ax.scatter(x, y , c="b" if tag == "mbd" else "brown")
-
     return x, y
 
 
-def main():
-    fontsize = 25
-    args = parse_arguments()
-    filename = args.filename
-    config = ConfigParser()
-    config.read(filename, encoding='UTF-8')
-    io, Wulff, methods, convergence = config['io'], config['Wulff'], config['methods'], config['convergence']
-    scf_path = io['scf_path']
-    structure_name = io['structure_name']
-    structure_path = io['structure_path']
-    plot = 't' in Wulff['Wulff_plot'].lower()
-    projected_direction = [int(x)
-                           for x in Wulff['projected_direction'].split(" ")]
-    threshhold = float(convergence['threshhold'])
-    consecutive_step = int(convergence['consecutive_step'])
-    fitting_method = methods['fitting_method']
+def convergence_plot(structure_name, scf_path, threshhold, consecutive_step, fontsize):
+    """Plot the surface convergence plots and calculate the surface energy for each surface.
+
+    Parameters:
+    ----------
+        structure_name: str
+            Structure's name.
+        scf_path: str
+            The path of SCF data in json format, stored by scripts in scripts/
+        threshhold: float
+            Threshhold that determines the convergence.
+        consecutive_step: int
+            The relative difference should be within the threshhold up to the number of consecutive steps.
+        fontsize: int
+            Font size to plot the convergence plots.
+
+    Returns:
+    --------
+    : dict
+        Dictionary that contains the surface energy values for TS and MBD with linear and Boettger method.
+    """
     if not os.path.isdir(structure_name):
         os.mkdir(structure_name)
     s = read(scf_path)
@@ -123,7 +124,6 @@ def main():
             layers = list(layers)
             maxy = 0
             miny = float('inf')
-            threshhold = 0.35
             for energies, tag in [(ts_energies, "ts"), (mbd_energies, "mbd")]:
                 energies = list(energies)
                 bx, by = Boettger(ax, layers, energies, area, tag)
@@ -161,10 +161,7 @@ def main():
             plt.savefig("{}/{}_{}.png".format(structure_name, index, term),
                         dpi=400, bbox_inches="tight")
             plt.close()
-
-    if plot:
-        Wulff_plot(structure_name, structure_path,
-                   projected_direction, fitting_method, energy_results)
+    return energy_results
 
 
 def Wulff_plot(structure_name, structure_path, projected_direction, fitting_method, energy_results):
@@ -178,14 +175,15 @@ def Wulff_plot(structure_name, structure_path, projected_direction, fitting_meth
             The path of initial bulk structure.
         projected_direction: List[int]
             The projected direction for the Wulff shape.
-        fitting_method: int 
+        fitting_method: int
             0: linear method, 1: Boettger method.
         energy_results: dict
             Dictionary that contains the surface energy values for TS and MBD with linear and Boettger method.
     """
     cif = CifParser(structure_path)
     lattice = cif.get_structures()[0].lattice
-    print(lattice.a, lattice.b, lattice.c)
+    print("Lattice parameters are [{}, {}, {}], please check whether they are in the same order as the input.".format(
+        lattice.a, lattice.b, lattice.c))
     for tag in ["ts", "mbd"]:
         energy_result = energy_results[tag]
         data = {}
@@ -211,6 +209,36 @@ def Wulff_plot(structure_name, structure_path, projected_direction, fitting_meth
         w_r.get_plot(direction=projected_direction)
         plt.savefig("{}/Wulff_{}.png".format(structure_name, tag),
                     dpi=400, bbox_inches="tight")
+
+        with open("{}/surface_energy_{}.csv".format(structure_name, tag),'w') as f:
+            f.write("Miller index\tSurface energy($mJ/m^{2}$)\n")
+            for idx, energy in data.items():
+                f.write("{}\t{}\n".format("".join(str(x) for x in idx), energy))
+
+
+def main():
+    args = parse_arguments()
+    filename = args.filename
+    fontsize = args.fontsize
+    config = ConfigParser()
+    config.read(filename, encoding='UTF-8')
+    io, Wulff, methods, convergence = config['io'], config['Wulff'], config['methods'], config['convergence']
+    scf_path = io['scf_path']
+    structure_name = io['structure_name']
+    structure_path = io['structure_path']
+    plot = 't' in Wulff['Wulff_plot'].lower()
+    projected_direction = [int(x)
+                           for x in Wulff['projected_direction'].split(" ")]
+    threshhold = float(convergence['threshhold'])
+    consecutive_step = int(convergence['consecutive_step'])
+    fitting_method = methods['fitting_method']
+
+    energy_results = convergence_plot(
+        structure_name, scf_path, threshhold, consecutive_step, fontsize)
+
+    if plot:
+        Wulff_plot(structure_name, structure_path,
+                   projected_direction, fitting_method, energy_results)
 
 
 if __name__ == "__main__":

@@ -65,7 +65,7 @@ class OrganicSlabGenerator(SlabGenerator):
 
         Returns:
         -------
-        slab_list: List[List[structures]]
+        : List[List[structures]]
         list of list of slabs for the required list of layers. Each list contains one or multiple terminations.
         """
         one_layer_slab, delta_cart = self._cleave_one_layer()
