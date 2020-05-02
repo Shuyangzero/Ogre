@@ -10,7 +10,7 @@ def parse_arguments():
     parser.add_argument('--filename', dest='filename', type=str)
     return parser.parse_args()
 
-
+@print_run_time
 def main():
     args = parse_arguments()
     filename = args.filename

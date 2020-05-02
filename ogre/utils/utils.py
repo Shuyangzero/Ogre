@@ -596,7 +596,13 @@ def double_screen(slab_molecules, bulk_molecules):
     tmp = [x for i, x in enumerate(slab_molecules) if i not in delete_list]
     return tmp
 
-
+def print_run_time(func):  
+    def wrapper(*args, **kw):  
+        local_time = time.time()  
+        func(*args, **kw) 
+        print 'current Function [%s] run time is %.2f' % (func.__name__ ,time.time() - local_time)  
+    return wrapper
+    
 def updatePOSCAR(output_file):
     """This function is used to correct the output file (POSCAR) of ase.
     Parameters:
