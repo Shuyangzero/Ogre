@@ -7,7 +7,6 @@ setup(
     name='ogre',
     version='0.0',
     packages=['ogre',
-              'ogre/ogreSWAMP',
               'ogre/utils',
               'ibslib',
               'ibslib/analysis',
