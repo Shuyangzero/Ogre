@@ -128,7 +128,10 @@ class OrganicSlabGenerator(SlabGenerator):
             surface_list.append(slab_several_layers.get_sorted_structure())
         return surface_list
 
-    def _cleave_one_layer(self):
+    def _cleave_one_layer(self, virtual_layers=4, virtual_vacuum=1000):
+        # ATTENTION! input parameter virtual_layers could be increased, i.e, to 8, 
+        # if current setting doesn't work for higher Miller index surfaces. The same for virtual_vacuum
+
         write(os.path.join(self.working_directory, 'bulk.POSCAR.vasp'),
               self.initial_structure, format="vasp")
         utils.modify_poscar(os.path.join(
@@ -153,13 +156,11 @@ class OrganicSlabGenerator(SlabGenerator):
         utils.modify_poscar(file_name)
         slab_temp = mg.Structure.from_file(file_name)
 
-        # attention! the slab is assigned to a new object
-        virtual_layers = 4
         slab = utils.surface(
             self.initial_structure, self.miller_index, layers=virtual_layers)
         delta = np.array(slab.cell)[2, :]
         # if self.vacuum_size is not None:
-        slab.center(vacuum=1000, axis=2)
+        slab.center(vacuum=virtual_vacuum, axis=2)
 
         file_name = os.path.join(
             self.working_directory, 'slab_before.POSCAR.vasp')
@@ -521,14 +522,20 @@ def cleave_for_surface_energies(structure_path, structure_name, vacuum_size, lis
         os.mkdir(structure_name)
     up = UniquePlanes(initial_structure, index=highest_index, verbose=False)
     p = Pool()
-    print("{} unique planes are found".format(len(up.unique_idx)))
-    pbar = tqdm(total=len(up.unique_idx))
+    unique_idx = set()
+    for x  in up.unique_idx:
+        i = np.gcd.reduce(x)
+        inverse_x = (tuple(-int(y/i) for y in x))
+        if inverse_x not in unique_idx:
+            unique_idx.add(tuple(int(y/i) for y in x))
 
+    print("{} unique planes are found".format(len(unique_idx)))
+    pbar = tqdm(total=len(unique_idx))
     def update(*a):
         nonlocal pbar
         pbar.update()
-    for miller_index in up.unique_idx:
+    for miller_index in unique_idx:
         p.apply_async(atomic_task, args=(
-            structure_name, initial_structure, miller_index, list_of_layers, vacuum_size, supercell_size, format_string), callback=update)
+            structure_name, initial_structure, list(miller_index), list_of_layers, vacuum_size, supercell_size, format_string), callback=update)
     p.close()
     p.join()
