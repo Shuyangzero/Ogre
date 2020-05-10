@@ -11,6 +11,7 @@ dist
 output
 aspirin_*
 ASPIRIN/
+aspirin/
 HOJCOB/
 run.sh
 save.sh
