@@ -23,22 +23,22 @@ ogre.config:
 
 ```
 [io]
-structure_path = ./structures/relaxed_structures/aspirin.cif
-structure_name = aspirin
+structure_path = ./structures/relaxed_structures/TETCEN.cif
+structure_name = TETCEN_test
 format = FHI
 ; Format can be FHI, VASP or CIF
 [methods]
 cleave_option = 1
-; 0: cleave a single surface, 1: cleave surfaces for urface energy calculations
+;0: cleave a single surface, 1: cleave surfaces for surface energy calculations
 [parameters]
-layers = 1-9 13 14
+layers = 1-6
 ; Layers could be specified as combination of start-end or separate numbers by space
 vacuum_size = 40
-highest_index = 1
-; Only meaningful when cleave_option = 1
+highest_index = 3
+; Only needed in cleave_option = 1， ignored in cleave_option = 0
 supercell_size = None
-miller_index = 1 0 0
-; Only meaningful when cleave_option = 0
+miller_index = 3 3 3
+; Only needed in cleave_option = 0, ignored in cleave_option = 1
 ```
 
 
