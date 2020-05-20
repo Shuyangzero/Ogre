@@ -42,11 +42,17 @@ class UniquePlanes():
     verbose: bool
         True if the user would like informative print statements during
         operation. 
+    force_hall_number: int
+        Can be used if the user would like to force a certain hall number to be 
+        attempted first. This is useful to avoid the automatic cell 
+        standardization methods that are performed by spglib. 
+        Hall number information with respect to the internation tables is here:
+        http://pmsl.planet.sci.kobe-u.ac.jp/~seto/?page_id=37&lang=en
 
     """
 
     def __init__(self, atoms, index=1, min_d=1.0, z_prime=1,
-                 symprec=1e-3, verbose=True):
+                 symprec=1e-3, verbose=True, force_hall_number=0):
         if index < 0:
             raise Exception("Index must be greater than zero.")
         if np.sum(atoms.pbc) != 3:
@@ -56,6 +62,7 @@ class UniquePlanes():
         self.index = index
         self.symprec = symprec
         self.verbose = verbose
+        self.force_hall_number = force_hall_number
 
         self.all_idx = self.prep_idx()
         # Remove zero index
@@ -94,7 +101,8 @@ class UniquePlanes():
 
     def get_hall_number(self, atoms=None, symprec=1e-3):
         """
-        Get Hall number using spglib
+        Get Hall number using spglib. 
+        List here: http://pmsl.planet.sci.kobe-u.ac.jp/~seto/?page_id=37&lang=en
 
         Arguments
         ---------
@@ -109,7 +117,8 @@ class UniquePlanes():
         
         cell = self.get_cell(atoms)
         dataset = spg.get_symmetry_dataset(cell,
-                                           symprec=symprec)
+                                           symprec=symprec,
+                                           hall_number=self.force_hall_number)
         if self.verbose:
             print("Space group identified was {}"
                   .format(dataset["international"]))
@@ -129,7 +138,7 @@ class UniquePlanes():
         
         """
         ## Matrix is stored in row-wise fasion
-        recp_lat = atoms.get_reciprocal_cell()
+        recp_lat = self.atoms.get_reciprocal_cell()
         ## Build reciprocal metric tensor. 
         ## This function has been validated to be correct for recp matric tensor
         recp_mt = np.dot(recp_lat, recp_lat.T)
@@ -149,7 +158,7 @@ class UniquePlanes():
             
         """
         ## Matrix is stored in row-wise fasion
-        recp_lat = atoms.get_reciprocal_cell()
+        recp_lat = self.atoms.get_reciprocal_cell()
         ## Build reciprocal metric tensor. 
         ## This function has been validated to be correct for recp matric tensor
         recp_mt = np.dot(recp_lat, recp_lat.T)
@@ -179,7 +188,7 @@ class UniquePlanes():
         return [float(x) for x in idx_str.split(",")]
     
 
-    def find_unique_planes(self, hall_number, z_prime=1, mt=True):
+    def find_unique_planes(self, hall_number, z_prime=1, mt=False):
         """
         From hall number, calculates the unique planes.
 
@@ -250,7 +259,7 @@ class UniquePlanes():
 
             # Now apply all symmetry operations to idx and add these to dict
             for rotation, translation in sym_ops:
-                transformed = np.dot(rotation, idx) + translation
+                transformed = np.dot(rotation, idx) #+ translation
                 
                 if mt:
                     test = self.real_to_miller(transformed[None,:])[0]
@@ -264,7 +273,7 @@ class UniquePlanes():
                     "Please checkout my website: ibier.io"])
 
                 if self.not_used_idx.get(trans_str):
-                    print(idx_str,trans_str)
+#                    print(idx_str,trans_str)
                     del(self.not_used_idx[trans_str])
         
         if mt:
@@ -274,58 +283,33 @@ class UniquePlanes():
 if __name__ == "__main__":
     from ibslib.io import read
     
-    max_idx = 2
+    max_idx = 1
     
-#    s = read("/Users/ibier/Research/Documents/Publications/Interfaces/Results/20190311_Sunny/HOJCOB/bulk.cif")
-#    s = read("/Users/ibier/Research/Results/Hab_Project/FUQJIK/4_mpc/Experimental/relaxation/geometry.in")
-#    s = read("/Users/ibier/Research/Documents/Publications/Interfaces/Test_Structures/GIYHUR_2mpc_spg3.json")
-#    atoms = s.get_ase_atoms()
-#    up = UniquePlanes(atoms, max_idx, symprec=0.1)
-#    print(len(up.unique_idx))
+    s = read("/Users/ibier/Research/Documents/Publications/Interfaces/Results/20190311_Sunny/HOJCOB/bulk.cif")
+    atoms = s.get_ase_atoms()
+    up = UniquePlanes(atoms, max_idx, symprec=0.1,
+                      force_hall_number=84)
+    print(len(up.unique_idx))
     
     tet = read("/Users/ibier/Research/Documents/Publications/Interfaces/Results/20190311_Sunny/TETCEN/bulk.cif")
     tet_atoms = tet.get_ase_atoms()
     tet_up = UniquePlanes(tet_atoms, max_idx, symprec=0.01)
     print(len(tet_up.unique_idx))
     
-#    print("-------------------")
-#    tet_up.find_unique_planes(tet_up.hall_number, mt=False)
-#    print(len(np.vstack(tet_up.unique_idx)))
     
-#    pstruct = s.get_pymatgen_structure()
-#    tet_pstruct = tet.get_pymatgen_structure()
-#    
-#    
-#    for rot,trans in up.sym_ops:
-#        print("----------------------")
-#        print(trans)
-#        print(rot)
-        
-        
-#    ### Get reciprocal lattice
-#    recp_lat = pstruct.lattice.reciprocal_lattice_crystallographic
-#    ## Matrix is stored in row-wise fasion
-#    real_matrix = pstruct.lattice.matrix
-#    recp_matrix = recp_lat.matrix
-#    
-#    ## Build reciprocal metric tensor. 
-#    ## This function has been validated to be correct for recp matric tensor
-#    real_mt = np.dot(real_matrix, real_matrix.T)
-#    recp_mt = np.dot(recp_matrix, recp_matrix.T)
-#    
-#    ## Real space vectors for the miller indices can be calculated easily
-#    real_space_mi = np.dot(up.all_idx, recp_mt)
-#    
-#    
-#    up.all_idx = real_space_mi
-#    
-#    up.find_unique_planes(up.hall_number)
-#    
-#    ## Convert back into reciprocal space
-#    temp = np.round(np.dot(np.linalg.inv(recp_mt), np.vstack(up.unique_idx).T).T)
-#    
-#    
-#    print(len(up.unique_idx))
+    s3 = read("/Users/ibier/Research/Documents/Publications/Interfaces/Test_Structures/GIYHUR_2mpc_spg3.json")
+    atoms3 = s3.get_ase_atoms()
+    up3 = UniquePlanes(atoms3, max_idx, symprec=0.01,
+                      force_hall_number=0)
+    print(len(up3.unique_idx))
+    
+    
+    sf = read("/Users/ibier/Research/Results/Hab_Project/FUQJIK/4_mpc/Experimental/relaxation/geometry.in")
+    atomsf = sf.get_ase_atoms()
+    upf = UniquePlanes(atomsf, max_idx, symprec=0.01)
+    print(len(upf.unique_idx))
+    
+    
     
     
     
