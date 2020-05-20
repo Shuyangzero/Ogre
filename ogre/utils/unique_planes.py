@@ -63,6 +63,7 @@ class UniquePlanes():
 
         self.hall_number = self.get_hall_number(atoms, symprec=self.symprec)
         self.find_unique_planes(self.hall_number, z_prime=z_prime)
+        
 
     def prep_idx(self):
         """
@@ -77,18 +78,21 @@ class UniquePlanes():
         return np.array(
             np.meshgrid(idx_range, idx_range, idx_range)).T.reshape(-1, 3)
 
-    def get_cell(self, atoms):
+    def get_cell(self, atoms=None):
         """
         Returns a cell tuple of the atoms object for use with spglib
 
         """
+        if atoms == None:
+            atoms = self.atoms
         lattice = atoms.cell.tolist()
         positions = atoms.get_scaled_positions().tolist()
         numbers = atoms.numbers.tolist()
         cell = (lattice, positions, numbers)
         return cell
+    
 
-    def get_hall_number(self, atoms, symprec=1e-3):
+    def get_hall_number(self, atoms=None, symprec=1e-3):
         """
         Get Hall number using spglib
 
@@ -100,6 +104,9 @@ class UniquePlanes():
             Precision used for space group identification. 
 
         """
+        if atoms == None:
+            atoms = self.atoms
+        
         cell = self.get_cell(atoms)
         dataset = spg.get_symmetry_dataset(cell,
                                            symprec=symprec)
@@ -108,6 +115,49 @@ class UniquePlanes():
                   .format(dataset["international"]))
 
         return dataset["hall_number"]
+    
+    
+    def miller_to_real(self, miller_idx):
+        """
+        Convert miller indices to real space vectors to apply symmetry 
+        operations in real space.
+        
+        Arguments
+        ---------
+        miller_idx: np.float64[:,3]
+            Matrix of miller indices. 
+        
+        """
+        ## Matrix is stored in row-wise fasion
+        recp_lat = atoms.get_reciprocal_cell()
+        ## Build reciprocal metric tensor. 
+        ## This function has been validated to be correct for recp matric tensor
+        recp_mt = np.dot(recp_lat, recp_lat.T)
+        ## Real space vectors for the miller indices can be calculated easily
+        real_space_mi = np.dot(miller_idx, recp_mt)
+        return real_space_mi
+    
+    
+    def real_to_miller(self, real_space):
+        """
+        Convert real space vectors into miller indices.
+        
+        Arguments
+        ---------
+        real_space: np.float64[:,3]
+            Matrix of real space vectors. 
+            
+        """
+        ## Matrix is stored in row-wise fasion
+        recp_lat = atoms.get_reciprocal_cell()
+        ## Build reciprocal metric tensor. 
+        ## This function has been validated to be correct for recp matric tensor
+        recp_mt = np.dot(recp_lat, recp_lat.T)
+        ## May introduce rounding errors, but unlikely
+        rounded = np.round(np.dot(np.linalg.inv(recp_mt), 
+                               np.vstack(real_space).T).T)
+        return rounded.astype(int)
+        
 
     def idx_to_str(self, idx):
         """
@@ -116,7 +166,8 @@ class UniquePlanes():
         float are only ever required for miller index computations. 
 
         """
-        return ",".join(["{:.2f}".format(x) for x in idx])
+        return ",".join(["{:.0f}".format(x) for x in idx])
+    
 
     def str_to_idx(self, idx_str):
         """
@@ -126,8 +177,9 @@ class UniquePlanes():
 
         """
         return [float(x) for x in idx_str.split(",")]
+    
 
-    def find_unique_planes(self, hall_number, z_prime=1):
+    def find_unique_planes(self, hall_number, z_prime=1, mt=True):
         """
         From hall number, calculates the unique planes.
 
@@ -142,6 +194,13 @@ class UniquePlanes():
             to 1, then (100) and (200) will necessarily be the same. However, 
             if there is more than 1 molecule in the asymmetric unit, this 
             is not generally the case. 
+        mt: bool
+            This is really just an argument from testing the algorithm. 
+            If mt is True, then the reciprocal metric tensor is used to convert
+            the miller indices into real space before applying symmetry 
+            operations. This is the physically correct this to do. mt should
+            always be set to True. If False, symmetry operations are applied
+            to the miller indices, which is not crystallographically correct. 
 
         """
         dataset = spg.get_symmetry_from_database(hall_number)
@@ -160,11 +219,21 @@ class UniquePlanes():
 
         # List to compile unique indicies
         self.unique_idx = []
-
-        for idx in self.all_idx:
-            # str format for dictionary storage to be independent of numerical
-            # precision.
-            idx_str = ",".join(["{:.2f}".format(x) for x in idx])
+        
+        miller_idx = self.all_idx
+        
+        if mt:
+            miller_idx = self.miller_to_real(miller_idx)
+        
+        for idx in miller_idx:
+            
+            if mt:
+                test = self.real_to_miller(idx[None,:])[0]
+                idx_str = ",".join(["{:.0f}".format(x) for x in test])
+            else:
+                # str format for dictionary storage to be independent of numerical
+                # precision.
+                idx_str = ",".join(["{:.0f}".format(x) for x in idx])
 
             # First check if idx has been used before
             if self.used_idx.get(idx_str):
@@ -182,8 +251,12 @@ class UniquePlanes():
             # Now apply all symmetry operations to idx and add these to dict
             for rotation, translation in sym_ops:
                 transformed = np.dot(rotation, idx) + translation
-
-                trans_str = ",".join(["{:.2f}".format(x) for x in transformed])
+                
+                if mt:
+                    test = self.real_to_miller(transformed[None,:])[0]
+                    trans_str = ",".join(["{:.0f}".format(x) for x in test])
+                else:
+                    trans_str = ",".join(["{:.0f}".format(x) for x in transformed])
 
                 # Can simply add to dictionary
                 self.used_idx[trans_str] = ". ".join([
@@ -191,53 +264,69 @@ class UniquePlanes():
                     "Please checkout my website: ibier.io"])
 
                 if self.not_used_idx.get(trans_str):
+                    print(idx_str,trans_str)
                     del(self.not_used_idx[trans_str])
-
-                # Compute angle to all other idx values if the number of
-                # molecules in the asymmetric unit is less than or equal to one
-                if z_prime <= 1:
-                    transformed_norm = transformed / \
-                        np.linalg.norm(transformed)
-                    not_used_list = [x for x in self.not_used_idx.keys()]
-                    for not_used_str in not_used_list:
-                        not_used_idx = self.str_to_idx(not_used_str)
-                        not_used_norm = np.array(not_used_idx) / \
-                            np.linalg.norm(not_used_idx)
-                        transformed_norm = transformed / \
-                            np.linalg.norm(transformed)
-
-                        # If the angle of the plane norms are the same,
-                        # then they will be identical planes
-                        if np.dot(transformed_norm, not_used_norm) == 1:
-                            self.used_idx[not_used_str] = ". ".join([
-                                "Thanks for reading the source code",
-                                "Please checkout my website: ibier.io"])
-                            del(self.not_used_idx[not_used_str])
-
-                # Now we need to handle the case of translational symmetries,
-                # including the case of lattice translations because the
-                # (200) surface will always be identical to the (100)
-                if np.sum(translation) > 0.1:
-                    # The effect of a symmetry with a translation component of
-                    # 0.5 on the miller index will be a multiplication by two.
-                    half_idx = np.where(np.abs(translation-0.5) < 0.01)[0]
-                    factor = np.ones(3)
-                    factor[half_idx] = 2
-                    transformed = np.dot(rotation, idx)*factor
-                    trans_str = self.idx_to_str(transformed)
-                    self.used_idx[trans_str] = ". ".join([
-                        "Thanks for reading the source code",
-                        "Please checkout my website: ibier.io"])
-
-                    # For a component of 0.25, this will be a multiplication by
-                    # two and a multiplication by four, so both should be
-                    # considered
+        
+        if mt:
+            self.unique_idx = self.real_to_miller(self.unique_idx)
 
 
 if __name__ == "__main__":
     from ibslib.io import read
-    s = read("/Users/ibier/Research/Results/Hab_Project/genarris-runs/" +
-             "GIYHUR/20191203_Exp_Volume/acsf_report/acsf/raw" +
-             "/GIYHUR_2mpc_0afa5b7040.json")
-    atoms = s.get_ase_atoms()
-    up = UniquePlanes(atoms, 2)
+    
+    max_idx = 2
+    
+#    s = read("/Users/ibier/Research/Documents/Publications/Interfaces/Results/20190311_Sunny/HOJCOB/bulk.cif")
+#    s = read("/Users/ibier/Research/Results/Hab_Project/FUQJIK/4_mpc/Experimental/relaxation/geometry.in")
+#    s = read("/Users/ibier/Research/Documents/Publications/Interfaces/Test_Structures/GIYHUR_2mpc_spg3.json")
+#    atoms = s.get_ase_atoms()
+#    up = UniquePlanes(atoms, max_idx, symprec=0.1)
+#    print(len(up.unique_idx))
+    
+    tet = read("/Users/ibier/Research/Documents/Publications/Interfaces/Results/20190311_Sunny/TETCEN/bulk.cif")
+    tet_atoms = tet.get_ase_atoms()
+    tet_up = UniquePlanes(tet_atoms, max_idx, symprec=0.01)
+    print(len(tet_up.unique_idx))
+    
+#    print("-------------------")
+#    tet_up.find_unique_planes(tet_up.hall_number, mt=False)
+#    print(len(np.vstack(tet_up.unique_idx)))
+    
+#    pstruct = s.get_pymatgen_structure()
+#    tet_pstruct = tet.get_pymatgen_structure()
+#    
+#    
+#    for rot,trans in up.sym_ops:
+#        print("----------------------")
+#        print(trans)
+#        print(rot)
+        
+        
+#    ### Get reciprocal lattice
+#    recp_lat = pstruct.lattice.reciprocal_lattice_crystallographic
+#    ## Matrix is stored in row-wise fasion
+#    real_matrix = pstruct.lattice.matrix
+#    recp_matrix = recp_lat.matrix
+#    
+#    ## Build reciprocal metric tensor. 
+#    ## This function has been validated to be correct for recp matric tensor
+#    real_mt = np.dot(real_matrix, real_matrix.T)
+#    recp_mt = np.dot(recp_matrix, recp_matrix.T)
+#    
+#    ## Real space vectors for the miller indices can be calculated easily
+#    real_space_mi = np.dot(up.all_idx, recp_mt)
+#    
+#    
+#    up.all_idx = real_space_mi
+#    
+#    up.find_unique_planes(up.hall_number)
+#    
+#    ## Convert back into reciprocal space
+#    temp = np.round(np.dot(np.linalg.inv(recp_mt), np.vstack(up.unique_idx).T).T)
+#    
+#    
+#    print(len(up.unique_idx))
+    
+    
+    
+    
