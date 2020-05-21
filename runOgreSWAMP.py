@@ -218,33 +218,42 @@ def Wulff_plot(structure_name, structure_path, projected_direction, fitting_meth
         w_r.get_plot(direction=projected_direction)
         plt.savefig("{}/Wulff_{}_threshhold={}.png".format(structure_name, tag, threshhold),
                     dpi=400, bbox_inches="tight")
+        
 
-
-
-def main():
+if __name__ == "__main__":
+    """
+    Performs all actions for the post-calculation analysis of the surface 
+    energy values by parsing data and producing figures. 
+    
+    """
+    
+    ## Parse Arguments from command line and 
     args = parse_arguments()
     filename = args.filename
     fontsize = args.fontsize
+    
+    ## Parse settings from the configuration file
     config = ConfigParser()
     config.read(filename, encoding='UTF-8')
-    io, Wulff, methods, convergence = config['io'], config['Wulff'], config['methods'], config['convergence']
+    io, Wulff, methods, convergence = config['io'], config['Wulff'], \
+                                      config['methods'], config['convergence']
+    
+    ## Prepare settings and convert to correct datatype
     scf_path = io['scf_path']
     structure_name = io['structure_name']
     structure_path = io['structure_path']
     plot = 't' in Wulff['Wulff_plot'].lower()
-    projected_direction = [int(x)
-                           for x in Wulff['projected_direction'].split(" ")]
+    projected_direction = [int(x) for x in 
+                           Wulff['projected_direction'].split(" ")]
     threshhold = float(convergence['threshhold'])
     consecutive_step = int(convergence['consecutive_step'])
     fitting_method = methods['fitting_method']
 
+    ## Plot convergence curves
     energy_results = convergence_plot(
         structure_name, scf_path, threshhold, consecutive_step, fontsize)
-
+    
+    ## Plot Wulff shapes
     if plot:
         Wulff_plot(structure_name, structure_path,
                    projected_direction, fitting_method, energy_results, threshhold)
-
-
-if __name__ == "__main__":
-    main()
