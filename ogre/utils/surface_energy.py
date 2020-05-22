@@ -7,7 +7,7 @@ import numpy as np
 
 from scipy import stats
 
-import matplotlib.pylot as plt
+import matplotlib.pyplot as plt
 
 from ibslib.io import read
 from ibslib.analysis import get
@@ -81,7 +81,11 @@ def Linear(ax, layers, energies, area, tag):
     return x, y
 
 
-def convergence_plot(structure_name, scf_path, threshhold, consecutive_step, fontsize):
+def convergence_plots(structure_name, 
+                      scf_path, 
+                      threshold, 
+                      consecutive_step, 
+                      fontsize):
     """
     Plot the surface convergence plots and calculate the surface energy for each 
     surface.
@@ -92,10 +96,11 @@ def convergence_plot(structure_name, scf_path, threshhold, consecutive_step, fon
         Structure's name.
     scf_path: str
         The path of SCF data in json format, stored by scripts in scripts/
-    threshhold: float
-        Threshhold that determines the convergence.
+    threshold: float
+        Threshold that determines the convergence. The threshold should be given
+        as a percent. 
     consecutive_step: int
-        The relative difference should be within the threshhold up to the 
+        The relative difference should be within the threshold up to the 
         number of consecutive steps.
     fontsize: int
         Font size to plot the convergence plots.
@@ -132,6 +137,7 @@ def convergence_plot(structure_name, scf_path, threshhold, consecutive_step, fon
 
     energy_results = collections.defaultdict(list)
 
+
     for index in indexes:
         tot_data = results[results["index"] ==
                            index].sort_values(by=["layers"])
@@ -162,16 +168,17 @@ def convergence_plot(structure_name, scf_path, threshhold, consecutive_step, fon
                     stop_index = 0
                     while stop_index < len(diff):
                         for i in range(consecutive_step):
-                            if diff[stop_index - i] >= threshhold:
+                            if diff[stop_index - i] >= threshold:
                                 break
                         else:
                             break
                         stop_index += 1
                         continue
                     if stop_index == len(diff):
-                        print(
-                            "The surface calculation with {} is not converged for {}".format(tag, index))
-                        exit()
+                        raise Exception(
+        "The surface calculation with the {} method was not converged for surface {}"
+        .format(tag, index) +
+        " to the user defined threshold of {}.".format(threshold))
                 else:
                     stop_index = len(ly) - 1
                 ly = ly[:stop_index + 1]
