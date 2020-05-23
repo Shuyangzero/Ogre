@@ -81,11 +81,41 @@ def Linear(ax, layers, energies, area, tag):
     return x, y
 
 
+def add_line(ax, x, y, method, tag):
+    """
+    For adding lines only up to a converged number of layers. 
+    
+    Arguments
+    ---------
+    ax: matplotlib.axes
+        Figure axes to add the linear line to.
+    x: iterable 
+        Values for number of layers 
+    y: iterable
+        Values for surfac energy from Boettger or Linear
+    method: str
+        One of "Boettger" or "Linear"
+    tag: str
+        String indicating the method. Must be one of: "pbe", "ts", "mbd"
+    """
+    if method == "Boettger":
+        c = {"pbe":"orange", "ts":"g", "mbd":"r"}
+        linestyle = "dashed"
+    elif method == "Linear":
+        c = {"pbe":"yellow", "ts":"brown", "mbd":"blue"}
+        linestyle = "solid"
+    else:
+        raise Exception("Method not recognized")
+    
+    ax.plot(x, y, c=c[tag], label="{} Linear".format(
+        tag.upper()), linewidth=7.0, linestyle=linestyle)
+
+
 def convergence_plots(structure_name, 
                       scf_path, 
-                      threshold, 
-                      consecutive_step, 
-                      fontsize):
+                      threshold=5, 
+                      max_layers=-1, 
+                      fontsize=16):
     """
     Plot the surface convergence plots and calculate the surface energy for each 
     surface.
@@ -99,9 +129,10 @@ def convergence_plots(structure_name,
     threshold: float
         Threshold that determines the convergence. The threshold should be given
         as a percent. 
-    consecutive_step: int
-        The relative difference should be within the threshold up to the 
-        number of consecutive steps.
+    max_layers: int
+        Maximum number of layers to use before an error is raised that the 
+        convergence tolerance was not reached. Default value of -1 indicates
+        that all layers will be used. 
     fontsize: int
         Font size to plot the convergence plots.
 
@@ -125,6 +156,7 @@ def convergence_plots(structure_name,
         a, b = struct.properties["lattice_vector_a"], struct.properties["lattice_vector_b"]
         area = abs(np.cross(a, b)[-1])
         struct.properties["area"] = area
+        
     results = get(s, "prop", ["mbd_energy", "energy", "index", "layers", "area",
                               "termination", "vdw_energy"])
     indexes = results["index"].unique()
@@ -142,10 +174,14 @@ def convergence_plots(structure_name,
         tot_data = results[results["index"] ==
                            index].sort_values(by=["layers"])
         terms = tot_data["termination"].unique()
+        
         for term in terms:
+            ## Prepare figure
             fig = plt.figure()
             ax = fig.add_subplot(1, 1, 1)
             ax.tick_params(labelsize=fontsize)
+            
+            ## Prepare data
             data = tot_data[tot_data["termination"] == term]
             area = data["area"][0]
             layers = data["layers"]
@@ -157,43 +193,137 @@ def convergence_plots(structure_name,
             layers = list(layers)
             maxy = 0
             miny = float('inf')
+            
+            maxy_list = []
+            miny_list = []
+            max_layer_list = []
+            min_layer_list = []
+            
             for energies, tag in [(pbe_energies,"pbe"), (ts_energies, "ts"), (mbd_energies, "mbd")]:
                 energies = list(energies)
-                bx, by = Boettger(ax, layers, energies, area, tag)
-                lx, ly = Linear(ax, layers, energies, area, tag)
+                
+                ### Calculate energies using a dummy axes
+                temp_fig = plt.figure()
+                temp_ax = temp_fig.add_subplot(111)
+                bx, by = Boettger(temp_ax, layers, energies, area, tag)
+                lx, ly = Linear(temp_ax, layers, energies, area, tag)
+                plt.close(temp_fig)
+                
                 diff = []
-                if tag in ["ts", "mbd"]:
+                if tag in ["ts", "mbd", "pbe"]:
                     for i in range(1, len(ly)):
                         diff.append(abs(ly[i] - ly[i-1]) / ly[i] * 100)
-                    stop_index = 0
-                    while stop_index < len(diff):
-                        for i in range(consecutive_step):
-                            if diff[stop_index - i] >= threshold:
-                                break
-                        else:
+                    
+                    ## Get last layer number for which convergence is achieveds
+                    converged = False
+                    keep_idx = -1
+                    for idx,value in enumerate(diff):
+                        ## Plus one because that's how diff list is built
+                        idx += 1
+                        last_layer_number = layers[idx]
+                        
+                        if value <= threshold:
+                            converged = True
+                            keep_idx = idx
                             break
-                        stop_index += 1
-                        continue
-                    if stop_index == len(diff):
+                    
+                    ## Check convergence occured at all
+                    if not converged:
                         raise Exception(
-        "The surface calculation with the {} method was not converged for surface {}"
-        .format(tag, index) +
-        " to the user defined threshold of {}.".format(threshold))
+                            "The surface calculation with the {} method "
+                            .format(tag) +
+                            "was not converged for surface {} " 
+                            .format(index) +
+                            "to the user defined threshold of {} "
+                            .format(threshold) +
+                            "after {} layers."
+                            .format(layers[-1])
+                            )
+                        
+                    ## Check if convergence occurs within max_layers
+                    elif max_layers > 0:
+                        if last_layer_number > max_layers:
+                            raise Exception(
+                                "The surface calculation with the {} method "
+                                .format(tag) +
+                                "was not converged for surface {} " 
+                                .format(index) +
+                                "to the user defined threshold of {} "
+                                .format(threshold)+
+                                "within max layers value of {}. "
+                                .format(max_layers) +
+                                "Convergence occured at {} layers."
+                                .format(last_layer_number)
+                                )
+                        else:
+                            ## Everything is fine
+                            pass
+                            ## Store values to be used for plotting
+                            
+                    else:
+                        ## Max layers is -1 which means that any last layer value
+                        ## is allowed.
+                        ## Everything is fine. 
+                        pass
+                
+                if max_layers > 0:
+                    ## Add results to final figure
+                    temp_layers = layers[:keep_idx+1]
+                    
+                    bx = bx[:keep_idx+1]
+                    by = by[:keep_idx+1]
+                    
+                    lx = lx[:keep_idx+1]
+                    ly = ly[:keep_idx+1]
+                    
+                    add_line(ax, bx, by, "Boettger", tag)
+                    add_line(ax, lx, ly, "Linear", tag)
+                    
                 else:
-                    stop_index = len(ly) - 1
-                ly = ly[:stop_index + 1]
-                by = by[:stop_index + 1]
-                maxy = max(max(by[-1], ly[-1]), maxy)
-                miny = min(min(by[-1], ly[-1]), miny)
+                    temp_layers = layers.copy()
+                    bx, by = Boettger(ax, 
+                                      layers, 
+                                      energies, 
+                                      area, 
+                                      tag)
+                    lx, ly = Linear(ax, 
+                                      layers, 
+                                      energies, 
+                                      area, 
+                                      tag)
+                    
+                ## Storage for figure formatting
+                maxy = max(by+ly)
+                miny = min(by+ly)
                 energy_results[tag].append((index, term, by[-1], ly[-1]))
-            ax.set_xticks(range(3, layers[-1] + 1, 2))
+                
+                maxy_list.append(maxy)
+                miny_list.append(miny)
+                max_layer_list.append(max(temp_layers)+2)
+                min_layer_list.append(min(temp_layers)+2)
+            
+            maxy = max(maxy_list)
+            miny = min(miny_list)
+            
+            ## Set xticks
+            xtick_values = range(min(min_layer_list), max(max_layer_list) + 1)
+            if len(xtick_values) > 8:
+                 xtick_values = range(min(min_layer_list), 
+                                      max(max_layer_list) + 1,
+                                      2)
+            ax.set_xticks(xtick_values)
+            ## Set y limites
+            ax.set_ylim(
+                miny - 5, maxy + 2)
+            
+            ## Set title
             if len(terms) == 2:
                 ax.set_title("({}) Type {}".format(
                     index, 'I' if term == 0 else 'II'), fontsize=fontsize)
             else:
                 ax.set_title("({})".format(index), fontsize=fontsize)
-            ax.set_ylim(
-                miny - 5, maxy + 2)
+            
+            ## Set labels 
             ax.set_xlabel("Number of Layers", fontsize=fontsize)
             ax.set_ylabel("Surface Energy ($mJ/m^{2}$)", fontsize=fontsize)
             plt.savefig("{}/{}_{}.png".format(structure_name, index, term),

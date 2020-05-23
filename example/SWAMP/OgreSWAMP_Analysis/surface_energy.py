@@ -7,9 +7,9 @@ convergence_plots_kw = \
 {
     "structure_name": "ASPIRIN",
     "scf_path": "SCF",
-    "threshold":  5,
+    "threshold":  1,
     ## MAYBE MAX_LAYERS INSTEAD
-    "consecutive_step": 1,
+    "max_layers": -1,
     "fontsize": 16,
 }
 
