@@ -1,0 +1,10 @@
+forrtl: severe (174): SIGSEGV, segmentation fault occurred
+Image              PC                Routine            Line        Source             
+DFT_MBD_AT_rsSCS.  000000000042C0AD  Unknown               Unknown  Unknown
+libpthread-2.17.s  00002B9C0DA825D0  Unknown               Unknown  Unknown
+DFT_MBD_AT_rsSCS.  0000000000414A95  utils_mp_get_mbd_          85  UTILS.F90
+DFT_MBD_AT_rsSCS.  0000000000406F13  utils_mp_mbd_at_r         266  UTILS.F90
+DFT_MBD_AT_rsSCS.  000000000041C81E  MAIN__                    170  MBD_AT_rsSCS.F90
+DFT_MBD_AT_rsSCS.  000000000040364E  Unknown               Unknown  Unknown
+libc-2.17.so       00002B9C0E7683D5  __libc_start_main     Unknown  Unknown
+DFT_MBD_AT_rsSCS.  0000000000403569  Unknown               Unknown  Unknown

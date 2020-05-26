@@ -8,6 +8,7 @@ import numpy as np
 from scipy import stats
 
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 
 from ibslib.io import read
 from ibslib.analysis import get
@@ -115,7 +116,8 @@ def convergence_plots(structure_name,
                       scf_path, 
                       threshold=5, 
                       max_layers=-1, 
-                      fontsize=16):
+                      fontsize=16,
+                      combined_figure=True):
     """
     Plot the surface convergence plots and calculate the surface energy for each 
     surface.
@@ -135,6 +137,9 @@ def convergence_plots(structure_name,
         that all layers will be used. 
     fontsize: int
         Font size to plot the convergence plots.
+    combined_figure: bool
+        If True, will create one large combined figure. 
+        If False, figures are save separately. 
 
     Returns
     -------
@@ -169,16 +174,47 @@ def convergence_plots(structure_name,
 
     energy_results = collections.defaultdict(list)
 
+    ## Building combined figure
+    if combined_figure:
+        ## Decide if three or four columns should be used
+        r3 = num_images % 3
+        r4 = num_images % 4
+        
+        if r3 <= r4:
+            columns = 3
+        else:
+            columns = 4
+        
+        rows = int(num_images / columns)+1
+        
+#        ## Account for integer rounding errors
+#        if rows < (num_images / columns):
+#            rows += 1
 
+        axes_height = 5
+        axes_width = 6
+        fig,ax_list = plt.subplots(
+                ncols=columns,
+                nrows=rows,
+                figsize=(axes_width*columns,axes_height*rows))
+        ax_list = ax_list.ravel()
+    
+    axes_idx = 0
     for index in indexes:
         tot_data = results[results["index"] ==
                            index].sort_values(by=["layers"])
         terms = tot_data["termination"].unique()
         
         for term in terms:
-            ## Prepare figure
-            fig = plt.figure()
-            ax = fig.add_subplot(1, 1, 1)
+            
+            if not combined_figure:
+                ## Prepare figure
+                fig = plt.figure()
+                ax = fig.add_subplot(1, 1, 1)
+            else:
+                ax = ax_list[axes_idx]
+                axes_idx += 1
+                
             ax.tick_params(labelsize=fontsize)
             
             ## Prepare data
@@ -326,8 +362,43 @@ def convergence_plots(structure_name,
             ## Set labels 
             ax.set_xlabel("Number of Layers", fontsize=fontsize)
             ax.set_ylabel("Surface Energy ($mJ/m^{2}$)", fontsize=fontsize)
-            plt.savefig("{}/{}_{}.png".format(structure_name, index, term),
-                        dpi=400, bbox_inches="tight")
-            plt.close()
             
+            if not combined_figure:
+                plt.savefig("{}/{}_{}.png".format(structure_name, index, term),
+                            dpi=400, bbox_inches="tight")
+                plt.close()
+    
+    if combined_figure:
+        ### Adding legend
+        legend_lines = [
+                Line2D([0], [0], color="orange", lw=7),
+                Line2D([0], [0], color="g", lw=7),
+                Line2D([0], [0], color="r", lw=7),
+                Line2D([0], [0], color="yellow", lw=7),
+                Line2D([0], [0], color="brown", lw=7),
+                Line2D([0], [0], color="blue", lw=7)]
+        legend_labels = ["Boettger PBE",
+                         "Boettger PBE+TS",
+                         "Boettger PBE+MBD",
+                         "Linear PBE",
+                         "Linear PBE+TS",
+                         "Linear PBE+MBD"]
+    
+        ## Can place in the bottom right corner because there's an open
+        ## plot there. 
+        ax = ax_list[-1]
+        ax.axis("off")
+        ax.legend(legend_lines,
+                  legend_labels,
+                  fontsize=fontsize,
+                  loc="center")
+        
+        ## Turn other axes off
+        for ax in ax_list[axes_idx:-1]:
+            ax.axis("off")
+        
+        plt.tight_layout()
+        fig.savefig("{}_Convergence_Plots.pdf".format(structure_name),
+                    )
+    
     return energy_results

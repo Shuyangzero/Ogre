@@ -1,6 +1,6 @@
 
 
-#from ogre.utils import convergence_plots
+from ogre.utils import convergence_plots
 
 
 convergence_plots_kw = \

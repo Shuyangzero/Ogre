@@ -1,0 +1,5 @@
+xc 1
+mbd_cfdm_dip_cutoff 100.d0
+mbd_supercell_cutoff 20.d0
+mbd_scs_dip_cutoff 120.0
+mbd_scs_vacuum_axis .false. .false. .true.
