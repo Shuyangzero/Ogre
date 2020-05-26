@@ -330,18 +330,7 @@ def convergence_plots(structure_name,
                     add_line(ax, lx, ly, "Linear", tag)
                     if boettger: 
                         add_line(ax, bx, by, "Boettger", tag)
-                    
-#                    bx, by = Boettger(ax, 
-#                                      layers, 
-#                                      energies, 
-#                                      area, 
-#                                      tag)
-#                    lx, ly = Linear(ax, 
-#                                      layers, 
-#                                      energies, 
-#                                      area, 
-#                                      tag)
-                    
+                        
                 ## Storage for figure formatting
                 maxy = max(by+ly)
                 miny = min(by+ly)
