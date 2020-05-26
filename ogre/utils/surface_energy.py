@@ -117,6 +117,8 @@ def convergence_plots(structure_name,
                       threshold=5, 
                       max_layers=-1, 
                       fontsize=16,
+                      pbe=False,
+                      boettger=True,
                       combined_figure=True):
     """
     Plot the surface convergence plots and calculate the surface energy for each 
@@ -137,6 +139,10 @@ def convergence_plots(structure_name,
         that all layers will be used. 
     fontsize: int
         Font size to plot the convergence plots.
+    pbe: bool
+        If True, PBE results will be included in the final plots.. 
+    boettger: bool
+        If True, Boettger results will be included in the final plots. 
     combined_figure: bool
         If True, will create one large combined figure. 
         If False, figures are save separately. 
@@ -186,10 +192,6 @@ def convergence_plots(structure_name,
             columns = 4
         
         rows = int(num_images / columns)+1
-        
-#        ## Account for integer rounding errors
-#        if rows < (num_images / columns):
-#            rows += 1
 
         axes_height = 5
         axes_width = 6
@@ -235,7 +237,14 @@ def convergence_plots(structure_name,
             max_layer_list = []
             min_layer_list = []
             
-            for energies, tag in [(pbe_energies,"pbe"), (ts_energies, "ts"), (mbd_energies, "mbd")]:
+            for energies, tag in [(pbe_energies,"pbe"), 
+                                  (ts_energies, "ts"), 
+                                  (mbd_energies, "mbd")]:
+                
+                if tag == "pbe":
+                    if not pbe:
+                        continue
+                
                 energies = list(energies)
                 
                 ### Calculate energies using a dummy axes
@@ -311,22 +320,27 @@ def convergence_plots(structure_name,
                     
                     lx = lx[:keep_idx+1]
                     ly = ly[:keep_idx+1]
-                    
-                    add_line(ax, bx, by, "Boettger", tag)
+                        
                     add_line(ax, lx, ly, "Linear", tag)
+                    if boettger: 
+                        add_line(ax, bx, by, "Boettger", tag)
                     
                 else:
                     temp_layers = layers.copy()
-                    bx, by = Boettger(ax, 
-                                      layers, 
-                                      energies, 
-                                      area, 
-                                      tag)
-                    lx, ly = Linear(ax, 
-                                      layers, 
-                                      energies, 
-                                      area, 
-                                      tag)
+                    add_line(ax, lx, ly, "Linear", tag)
+                    if boettger: 
+                        add_line(ax, bx, by, "Boettger", tag)
+                    
+#                    bx, by = Boettger(ax, 
+#                                      layers, 
+#                                      energies, 
+#                                      area, 
+#                                      tag)
+#                    lx, ly = Linear(ax, 
+#                                      layers, 
+#                                      energies, 
+#                                      area, 
+#                                      tag)
                     
                 ## Storage for figure formatting
                 maxy = max(by+ly)
@@ -369,6 +383,7 @@ def convergence_plots(structure_name,
                 plt.close()
     
     if combined_figure:
+        
         ### Adding legend
         legend_lines = [
                 Line2D([0], [0], color="orange", lw=7),
@@ -383,6 +398,21 @@ def convergence_plots(structure_name,
                          "Linear PBE",
                          "Linear PBE+TS",
                          "Linear PBE+MBD"]
+        
+        if not pbe:
+            keep_idx = [1,2,4,5]
+            legend_lines = [legend_lines[x] for x in keep_idx]
+            legend_labels = [legend_labels[x] for x in keep_idx]
+            
+            if not boettger:
+                keep_idx = [2,3]
+                legend_lines = [legend_lines[x] for x in keep_idx]
+                legend_labels = [legend_labels[x] for x in keep_idx]
+        elif not boettger:
+            keep_idx = [3,4,5]
+            legend_lines = [legend_lines[x] for x in keep_idx]
+            legend_labels = [legend_labels[x] for x in keep_idx]
+        
     
         ## Can place in the bottom right corner because there's an open
         ## plot there. 
