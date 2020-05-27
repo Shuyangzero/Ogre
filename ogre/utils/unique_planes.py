@@ -22,6 +22,11 @@ class UniquePlanes():
 
     For a compelete list of space groups and hall numbers, please visit:
         http://pmsl.planet.sci.kobe-u.ac.jp/~seto/?page_id=37&lang=en
+        
+    Examples
+    --------
+    >>> up = UniquePlanes(atoms, index=1, symprec=1e-3)
+    >>> print(up.unique_idx)
 
     Parameters
     ---------
@@ -29,9 +34,6 @@ class UniquePlanes():
         Crystal structure to identify unique planes
     index: int
         Maximum miller index to use in plane creation. 
-    min_d: float
-        Minimum interplanar spacing to use in Angstroms. As distance 
-        decreases, the morphological importance decreases. 
     z_prime: float
         Number of molecules in the asymmetric unit. If the number is equal
         to 1, then (100) and (200) will necessarily be the same. However, 
@@ -51,8 +53,13 @@ class UniquePlanes():
 
     """
 
-    def __init__(self, atoms, index=1, min_d=1.0, z_prime=1,
-                 symprec=1e-3, verbose=True, force_hall_number=0):
+    def __init__(self, 
+                 atoms, 
+                 index=1, 
+                 z_prime=1,
+                 symprec=1e-3, 
+                 verbose=True, 
+                 force_hall_number=0):
         if index < 0:
             raise Exception("Index must be greater than zero.")
         if np.sum(atoms.pbc) != 3:

@@ -118,6 +118,7 @@ def convergence_plots(structure_name,
                       max_layers=-1, 
                       fontsize=16,
                       pbe=False,
+                      mbd=True,
                       boettger=True,
                       combined_figure=True):
     """
@@ -140,7 +141,9 @@ def convergence_plots(structure_name,
     fontsize: int
         Font size to plot the convergence plots.
     pbe: bool
-        If True, PBE results will be included in the final plots.. 
+        If True, PBE results will be included in the final plots.
+    mbd: bool
+        If True, MBD results will be included in the final plots.
     boettger: bool
         If True, Boettger results will be included in the final plots. 
     combined_figure: bool
@@ -236,6 +239,7 @@ def convergence_plots(structure_name,
             miny_list = []
             max_layer_list = []
             min_layer_list = []
+            not_converged_list = []
             
             for energies, tag in [(pbe_energies,"pbe"), 
                                   (ts_energies, "ts"), 
@@ -243,6 +247,9 @@ def convergence_plots(structure_name,
                 
                 if tag == "pbe":
                     if not pbe:
+                        continue
+                if tag == "mbd":
+                    if not mbd:
                         continue
                 
                 energies = list(energies)
@@ -274,7 +281,7 @@ def convergence_plots(structure_name,
                     
                     ## Check convergence occured at all
                     if not converged:
-                        raise Exception(
+                        print(
                             "The surface calculation with the {} method "
                             .format(tag) +
                             "was not converged for surface {} " 
@@ -288,7 +295,7 @@ def convergence_plots(structure_name,
                     ## Check if convergence occurs within max_layers
                     elif max_layers > 0:
                         if last_layer_number > max_layers:
-                            raise Exception(
+                            print(
                                 "The surface calculation with the {} method "
                                 .format(tag) +
                                 "was not converged for surface {} " 
@@ -300,6 +307,8 @@ def convergence_plots(structure_name,
                                 "Convergence occured at {} layers."
                                 .format(last_layer_number)
                                 )
+                            converged = False
+                            
                         else:
                             ## Everything is fine
                             pass
@@ -312,14 +321,18 @@ def convergence_plots(structure_name,
                         pass
                 
                 if max_layers > 0:
-                    ## Add results to final figure
-                    temp_layers = layers[:keep_idx+1]
                     
-                    bx = bx[:keep_idx+1]
-                    by = by[:keep_idx+1]
-                    
-                    lx = lx[:keep_idx+1]
-                    ly = ly[:keep_idx+1]
+                    if keep_idx > 0:
+                        ## Add results to final figure
+                        temp_layers = layers[:keep_idx+1]
+                        
+                        bx = bx[:keep_idx+1]
+                        by = by[:keep_idx+1]
+                        
+                        lx = lx[:keep_idx+1]
+                        ly = ly[:keep_idx+1]
+                    else:
+                        temp_layers = layers.copy()
                         
                     add_line(ax, lx, ly, "Linear", tag)
                     if boettger: 
@@ -340,6 +353,9 @@ def convergence_plots(structure_name,
                 miny_list.append(miny)
                 max_layer_list.append(max(temp_layers)+2)
                 min_layer_list.append(min(temp_layers)+2)
+                
+                if converged == False:
+                    not_converged_list.append(tag)
             
             maxy = max(maxy_list)
             miny = min(miny_list)
@@ -366,10 +382,24 @@ def convergence_plots(structure_name,
             ax.set_xlabel("Number of Layers", fontsize=fontsize)
             ax.set_ylabel("Surface Energy ($mJ/m^{2}$)", fontsize=fontsize)
             
+            ## Add text if the surface is not converged
+            if len(not_converged_list) > 0:
+                text = "NOT CONVERGED: \n"
+                for entry in not_converged_list[:-1]:
+                    text += "{}, ".format(entry)
+                text += "{}".format(not_converged_list[-1])
+                
+                ax.text(0.0, 1.02,
+                        text,
+                        color="r",
+                        fontsize=12,
+                        transform=ax.transAxes)
+            
             if not combined_figure:
                 plt.savefig("{}/{}_{}.png".format(structure_name, index, term),
                             dpi=400, bbox_inches="tight")
                 plt.close()
+    
     
     if combined_figure:
         
@@ -390,15 +420,27 @@ def convergence_plots(structure_name,
         
         if not pbe:
             keep_idx = [1,2,4,5]
+            if not boettger:
+                keep_idx = [4,5]    
+                if not mbd:
+                    keep_idx = [4]        
+            elif not mbd:
+                keep_idx = [1,4]
+                
             legend_lines = [legend_lines[x] for x in keep_idx]
             legend_labels = [legend_labels[x] for x in keep_idx]
             
-            if not boettger:
-                keep_idx = [2,3]
-                legend_lines = [legend_lines[x] for x in keep_idx]
-                legend_labels = [legend_labels[x] for x in keep_idx]
         elif not boettger:
             keep_idx = [3,4,5]
+            
+            if not mbd:
+                keep_idx = [3,4]
+            
+            legend_lines = [legend_lines[x] for x in keep_idx]
+            legend_labels = [legend_labels[x] for x in keep_idx]
+        
+        elif not mbd:
+            keep_idx = [0,1,3,4]
             legend_lines = [legend_lines[x] for x in keep_idx]
             legend_labels = [legend_labels[x] for x in keep_idx]
         
@@ -411,7 +453,12 @@ def convergence_plots(structure_name,
                   legend_labels,
                   fontsize=fontsize,
                   loc="center")
-        
+        ax.text(0.0, 0.9,
+                "CONVERGENCE THRESHOLD: {}%".format(threshold),
+                color="r",
+                fontsize=fontsize,
+                transform=ax.transAxes)
+
         ## Turn other axes off
         for ax in ax_list[axes_idx:-1]:
             ax.axis("off")
@@ -419,5 +466,7 @@ def convergence_plots(structure_name,
         plt.tight_layout()
         fig.savefig("{}_Convergence_Plots.pdf".format(structure_name),
                     )
+        
+        plt.close()
     
     return energy_results

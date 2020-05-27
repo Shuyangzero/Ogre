@@ -1,0 +1,16 @@
+\indexentry{OrganicSlabGenerator (class in ogre.generators)@\spxentry{OrganicSlabGenerator}\spxextra{class in ogre.generators}|hyperpage}{4}
+\indexentry{cleave() (ogre.generators.OrganicSlabGenerator method)@\spxentry{cleave()}\spxextra{ogre.generators.OrganicSlabGenerator method}|hyperpage}{4}
+\indexentry{cleave\_for\_surface\_energies() (in module ogre.generators)@\spxentry{cleave\_for\_surface\_energies()}\spxextra{in module ogre.generators}|hyperpage}{4}
+\indexentry{atomic\_task() (in module ogre.generators)@\spxentry{atomic\_task()}\spxextra{in module ogre.generators}|hyperpage}{5}
+\indexentry{UniquePlanes (class in ogre.utils)@\spxentry{UniquePlanes}\spxextra{class in ogre.utils}|hyperpage}{5}
+\indexentry{prep\_idx() (ogre.utils.UniquePlanes method)@\spxentry{prep\_idx()}\spxextra{ogre.utils.UniquePlanes method}|hyperpage}{6}
+\indexentry{get\_cell() (ogre.utils.UniquePlanes method)@\spxentry{get\_cell()}\spxextra{ogre.utils.UniquePlanes method}|hyperpage}{6}
+\indexentry{get\_hall\_number() (ogre.utils.UniquePlanes method)@\spxentry{get\_hall\_number()}\spxextra{ogre.utils.UniquePlanes method}|hyperpage}{6}
+\indexentry{miller\_to\_real() (ogre.utils.UniquePlanes method)@\spxentry{miller\_to\_real()}\spxextra{ogre.utils.UniquePlanes method}|hyperpage}{6}
+\indexentry{real\_to\_miller() (ogre.utils.UniquePlanes method)@\spxentry{real\_to\_miller()}\spxextra{ogre.utils.UniquePlanes method}|hyperpage}{6}
+\indexentry{find\_unique\_planes() (ogre.utils.UniquePlanes method)@\spxentry{find\_unique\_planes()}\spxextra{ogre.utils.UniquePlanes method}|hyperpage}{6}
+\indexentry{convergence\_plots() (in module ogre.utils)@\spxentry{convergence\_plots()}\spxextra{in module ogre.utils}|hyperpage}{7}
+\indexentry{wulffmaker\_index() (in module ogre.utils.wulffmaker)@\spxentry{wulffmaker\_index()}\spxextra{in module ogre.utils.wulffmaker}|hyperpage}{7}
+\indexentry{wulffmaker\_gamma() (in module ogre.utils.wulffmaker)@\spxentry{wulffmaker\_gamma()}\spxextra{in module ogre.utils.wulffmaker}|hyperpage}{7}
+\indexentry{wulffmaker\_color() (in module ogre.utils.wulffmaker)@\spxentry{wulffmaker\_color()}\spxextra{in module ogre.utils.wulffmaker}|hyperpage}{7}
+\indexentry{miller\_index\_legend() (in module ogre.utils.wulffmaker)@\spxentry{miller\_index\_legend()}\spxextra{in module ogre.utils.wulffmaker}|hyperpage}{7}

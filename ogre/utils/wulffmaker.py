@@ -15,7 +15,12 @@ def sort_keys(miller_index):
     ---------
     miller_index: iterable
         Any iterable that holds the miller indices as a iteratable of length 3. 
-    
+        
+        
+    Returns
+    -------
+    list
+        Sorted list of miller indices where each entry is a numpy array. 
     """
     array = np.vstack(miller_index)
     pos_idx = np.where((array >= 0).all(axis=-1))[0]
@@ -42,6 +47,11 @@ def color_wheel(miller_index):
     ---------
     miller_index: iterable
         Any iterable that holds the miller indices as a iteratable of length 3.
+    
+    Returns
+    -------
+    list
+        List of matplotlib rgb entries. 
         
     """
     color_wheel = {}
@@ -93,7 +103,18 @@ def color_wheel(miller_index):
 
 def str2tuple(idx_str):
     """
-    For miller index string
+    Convert a miller index string to a tuple. 
+    
+    Arguments
+    ---------
+    idx_str: str
+        String for miller index such as "1,1,1"
+        
+    Returns
+    -------
+    tuple
+        Returns integer tuple such as (1,1,1)
+    
     """
     idx = []
     temp_idx = ""
@@ -116,6 +137,12 @@ def wulffmaker_index(miller_index):
     ---------
     miller_index: iterable
         Any iterable that holds the miller indices as a iteratable of length 3. 
+        
+    Returns
+    -------
+    str
+        String to be copied to wulffmaker for the miller indices. 
+    
     """
     index_string = "pickIndex[i_, j_] :=\n"
     index_string += "Which[\n"
@@ -144,6 +171,12 @@ def wulffmaker_gamma(energy):
     ---------
     energy: iterable
         Any iterable that holds the surfac energies
+    
+    Returns
+    -------
+    str
+        String to be copied to wulffmaker for the surface energies. 
+        
     """
     gamma_string = "pickGamma[i_] :=\n"
     gamma_string += "Which[\n"
@@ -169,6 +202,12 @@ def wulffmaker_color(miller_index):
     ---------
     miller_index: iterable
         Any iterable that holds the miller indices as a iteratable of length 3. 
+    
+    Returns
+    -------
+    str
+        String to be copied to wulffmaker for the surface colors. 
+        
     """
     color_string = "pickColor[i_] :=\n"
     color_string += "Which[\n"
@@ -235,6 +274,7 @@ def miller_index_legend(
         markerfacecolor or label arguments because these are used by function. 
     figure_kw: dict
         Key-word arguments passed to matplotlib.pyplot.figure command. 
+        
     """
     colors = color_wheel(miller_index)
     legend_elements = []

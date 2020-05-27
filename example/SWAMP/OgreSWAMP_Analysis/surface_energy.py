@@ -1,6 +1,6 @@
 
 
-from ogre.utils import convergence_plots
+#from ogre.utils import convergence_plots
 
 
 convergence_plots_kw = \
@@ -11,6 +11,7 @@ convergence_plots_kw = \
     "max_layers": -1,
     "fontsize": 16,
     "pbe": True,
+    "mbd": True,
     "boettger": True,
     "combined_figure": True
 }
