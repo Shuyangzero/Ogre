@@ -24,6 +24,9 @@ from functools import wraps
 
 
 def modify_poscar(file):
+    """
+    Change the file to compliant POSCAR.
+    """
     index = 0
     prev_file = open(file, 'r')
     new_file = open(file+'.new', 'w')
@@ -549,6 +552,20 @@ def isomorphic_to(self, other):
 
 
 def reduced_sites(molecules, slab):
+    """
+    Find atoms that appear again due to the periodicity.
+
+    Parameters:
+    -----------
+    molecules: List[molecule].
+        All molecules that might be within or out of the slab boundary.
+    slab: ASE structure.
+        Slab structure.
+
+    Returns:
+    --------
+    sites: List[atom].
+    """
     sites = []
     for molecule in molecules:
         for curr_site in molecule:
@@ -561,11 +578,24 @@ def reduced_sites(molecules, slab):
 
 
 def is_isomorphic(molecule1, molecule2):
+    """
+    Determin whether two molecules are the same.
+    
+    Parameters:
+    -----------
+    molecule1 and molecule2.
+
+    Returns:
+    --------
+    bool.
+    """
     return isomorphic_to(MoleculeGraph.with_local_env_strategy(molecule1, JmolNN()), MoleculeGraph.with_local_env_strategy(molecule2, JmolNN()))
 
 
 def double_screen(slab_molecules, bulk_molecules):
-    # double check with bulk if there is any molecule already  present in bulk3
+    """
+    Double check with bulk if there is any molecule already present in bulk
+    """    
     delete_list = []
     for bulk_molecule in bulk_molecules:
         for i, slab_molecule in enumerate(slab_molecules):
@@ -576,6 +606,9 @@ def double_screen(slab_molecules, bulk_molecules):
 
 
 def print_run_time(func):
+    """
+    One wrapper that output the run_time of a funtion.
+    """
     @wraps(func)
     def wrapper(*args, **kw):
         local_time = time.time()
@@ -587,6 +620,7 @@ def print_run_time(func):
 
 def updatePOSCAR(output_file):
     """This function is used to correct the output file (POSCAR) of ase.
+
     Parameters:
     ----------
     output_file : str
@@ -639,6 +673,23 @@ def edge_match(e1, e2):
 
 
 def get_bulk_subgraphs(bulk_structure_sg):
+    """
+    Get all subgraphs of molecules that within or crosses the boundary of
+    original bulk.
+
+    Parameters:
+    -----------
+    bulk_structure_sg: StructureGraph.
+        The structure graph of bulk with local env strategy.
+
+    Returns:
+    --------
+    super_graphs : List[graph].
+        Represent the subgraphs of molecules that within or crosses the
+        boundary of original bulk. 
+    molecules : List[molecule].
+        Molecules that are correlated to the subgraphs.
+    """
     bulk_super_structure_sg_graph = nx.Graph(bulk_structure_sg.graph)
     all_super_subgraphs = list(nx.connected_component_subgraphs
                                (bulk_super_structure_sg_graph))
@@ -668,16 +719,19 @@ def get_bulk_subgraphs(bulk_structure_sg):
 
 
 def get_bulk_subgraphs_unique(bulk_structure_sg):
-    """get unique subgraphs of bulk based on graph algorithm.
-        This function would only return unique molecules and its graphs,
-        but not any duplicates present in the crystal.
-        (A duplicate defined as an isomorphic crystals.
-    :param
-    -----
+    """
+    get unique subgraphs of bulk based on graph algorithm.
+    This function would only return unique molecules and its graphs,
+    but not any duplicates present in the crystal.
+    (A duplicate defined as an isomorphic crystals.
+
+    Parameters:
+    -----------
     bulk_structure_sg : nx.SturctureGraph class,
         this one is actually the supercell one that is equal to(3, 3, 3) * unit cell.
-    :return
-    -------
+
+    Returns:
+    --------
     unique_super_graphs : (list) [graph, ...],
         represent the unique subgraphs in the supercell and expecially
         in the boundary of supercell.
@@ -775,6 +829,9 @@ def get_slab_different_subgraphs(slab_supercell_sg, unique_super_bulk_subgraphs)
 
 
 def belong_to(species1, species2):
+    """
+    Determine whether species1 are totally included by species2.
+    """
     if len(species1) > len(species2):
         return False
     i = 0
@@ -794,7 +851,10 @@ def belong_to(species1, species2):
 
 
 def length_belong_to(weights1, weights2):
-    """weights are the list [weight, weight, ...] of one node"""
+    """
+    Determine whether weights1 are totally included by weights2
+    weights are the list [weight, weight, ...] of one node
+    """
     if len(weights1) > len(weights2):
         return False
     i = 0
@@ -814,6 +874,10 @@ def length_belong_to(weights1, weights2):
 
 
 def weights_all_belong_to(all_weight1, all_weight2, species1, species2):
+    """
+    Determine whether one graph is totally included by another graph by
+    comparing species and weights.
+    """
     if len(all_weight1) > len(all_weight2):
         return False
     i = 0
@@ -843,6 +907,29 @@ def weights_all_belong_to(all_weight1, all_weight2, species1, species2):
 
 def brokenMolecules_and_corresspoundingIntactMolecules(new_different_subgraphs,
                                                        unique_super_subgraphs):
+    """
+    NOT used in current reconstruction method!!!
+
+    Determine the intact molecules that each molecule (broken or intact) belongs to by
+    compcomparing the species and weights of broken molecules and intact
+    molecules.
+
+    Parameters:
+    -----------
+    new_different_subgraphs: List[subgraph].
+        Subgraphs of all molecules.
+    unique_super_subgraphs: List[subgraph].
+        Subgraphs of all bulk's unique molecules. 
+
+    Returns:
+    --------
+    qualified_subgraphs: List[subgraph].
+        List of subgraph of molecules in the raw slab.
+    unique_super_subgraphs: List[subgraph].
+        List of subgraph of corresspounding intact molecules. The length of
+        qualified_unique_subgraphs should be the same as the length of
+        qualified_subgraphs.
+    """
     qualified_subgraphs = []
     qualified_unique_subgraphs = []
     # account = 1
@@ -891,6 +978,38 @@ def fix_broken_molecules(qualified_subgraphs,
                          bulk_super_structure_sg,
                          slab_supercell_sg,
                          slab, c_frac_min, fixed_c_negative=False):
+    """
+    NOT used in the current reconstruction method!!!
+
+    Fix broken molecules based on graph theory. After determine the affiliation
+    between all molecules in raw slabs and intact molecules in the original
+    bulk, this function would replace those broken molecules with intact
+    molecules.
+
+    Parameters:
+    -----------
+    qualified_subgraphs: List[subgraph].
+        List of subgraphs of all molecules in the raw molecules.
+    qualified_unique_subgraphs: List[subgraph].
+        Each element in the list is the subgraph of corresspounding intact
+        molecule of "qualified_subgraphs" in the previous list. 
+    bulk_super_structure_sg: StructureGraph.
+        Structure Graph of supercell (3 x 3 x 3) of original bulk.
+    slab_supercell_sg: StructureGraph.
+        Structure Graph of supercell (3 x 3 x 3) of raw slab.
+    slab: ASE structure.
+        Raw slab after ASE cleaving.
+    c_frac_min: float.
+        Fractional coordinate of the lowest atom in raw slabs in c direction.
+    fixed_c_negative: bool
+        Fix the broken molecules in the lower side or not? Default option is
+        False.
+
+    Returns:
+    --------
+    slab: pymatgen structure.
+        Slab after reconstruction.
+    """
     molecules_new = []
     #print("trying to fix the broken molecules...")
     for i in range(len(qualified_subgraphs)):
@@ -1033,6 +1152,10 @@ def fix_broken_molecules(qualified_subgraphs,
 
 
 def put_everyatom_into_cell(slab):
+    """
+    Some atoms might be out of the boundary of slab. Put all atoms into the
+    boundary in the case that atoms don't overlap.
+    """
     coords = slab.frac_coords
     for i in range(coords.shape[0]):
         for j in range(coords.shape[1]):
@@ -1062,6 +1185,12 @@ def less_fix_broken_molecules(less_broken_subgraphs, less_intact_subgraphs,
                               slab_supercell_sg,
                               slab, c_frac_min,
                               fixed_c_negative=True):
+    """
+    NOT used in the current reconstruction method!!!
+
+    An optimized function of fix_broken_molecules() but does exactly the
+    same thing. It can deal with more small broken molecules.
+    """
     molecules_new = []
     for i in range(len(less_broken_subgraphs)):
         broken_subgraphs_species = []
@@ -1224,6 +1353,22 @@ def less_fix_broken_molecules(less_broken_subgraphs, less_intact_subgraphs,
 
 
 def move_molecule(molecules, slab, delta):
+    """
+    Move molecules by a specific distance.
+
+    Parameters: 
+    -----------
+    molecules: List[molecule].
+        Molecules that need to be moved.
+    slab: pymatgen structure.
+        Slab after reconstruction process.
+    delta: List[float].
+        The distance those molecules should move in Cartesian Coordinates.
+
+    Returns:
+    --------
+    slab: pymatgen structure.
+    """
     coords = slab.cart_coords
     species = slab.species
     delete_sites = reduced_sites(molecules, slab)
@@ -1243,6 +1388,30 @@ def move_molecule(molecules, slab, delta):
 
 
 def double_find_the_gap(little_gap, big_gap, gaps, users_define_layers, tol):
+    """
+    Determine the fractional distance of two adajacent molecule groups in the c
+    direction.
+
+    Parameters:
+    -----------
+    little_gap: float (0, 1].
+    big_gap: float [0, 1).
+    gaps: List[float].
+        the fractional distance of all sorted molecules in the c direction.
+    users_define_layers: int.
+        Possible number of groups in one-layer slab. Once the goups are
+        defined, molecules in one group would move from one side to another
+        simultaneously. The default number is None, means that each
+        molecule makes up a group. 
+    tol: float.
+        Least difference between big and little gaps. i.e 1e-4.
+
+    Returns:
+    --------
+    medium_gap: float.
+        The fractional distance of two adajacent molecule groups. Return -1 if the function cannot determine this distance, i.e
+    two groups are located in the same height.
+    """
     if abs(big_gap - little_gap) < tol:
         return -1
     medium_gap = 0.5 * (little_gap + big_gap)
