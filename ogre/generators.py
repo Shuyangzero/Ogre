@@ -99,7 +99,7 @@ class OrganicSlabGenerator(SlabGenerator):
 
         for delete, layer in zip(deletes, self.list_of_layers):
             slabs_with_different_terminations = self._pile_to(
-                termination_list, delta_cart, layer, c_perpendicular = False)
+                termination_list, delta_cart, layer, c_perpendicular = True)
             slabs_with_different_terminations = [utils.delete_molecules(slab,
                                                                         self.working_directory,
                                                                         self.vacuum_size, delete)
