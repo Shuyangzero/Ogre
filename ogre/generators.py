@@ -1,5 +1,6 @@
 # -*- coding: UTF-8 -*-
 from abc import ABC, abstractmethod
+import sys
 from ase.io import read, write
 from ase.build import surface
 from pymatgen.analysis.structure_matcher import StructureMatcher
@@ -20,7 +21,9 @@ import networkx as nx
 
 
 class SlabGenerator(ABC):
-    def __init__(self, initial_structure, miller_index, list_of_layers, vacuum_size, supercell_size, working_directory):
+    def __init__(self, initial_structure, miller_index, list_of_layers,
+                 vacuum_size, supercell_size, working_directory,
+                 desired_num_of_molecules_oneLayer):
 
         self.initial_structure = initial_structure
         self.miller_index = miller_index
@@ -28,6 +31,7 @@ class SlabGenerator(ABC):
         self.vacuum_size = vacuum_size
         self.supercell_size = supercell_size
         self.working_directory = working_directory
+        self.desired_num_of_molecules_oneLayer = desired_num_of_molecules_oneLayer
 
     @abstractmethod
     def cleave(self):
@@ -63,9 +67,11 @@ class OrganicSlabGenerator(SlabGenerator):
                  list_of_layers, 
                  vacuum_size, 
                  supercell_size, 
-                 working_directory):
+                 working_directory,
+                 desired_num_of_molecules_oneLayer):
         super().__init__(initial_structure, miller_index, list_of_layers,
-                         vacuum_size, supercell_size, working_directory)
+                         vacuum_size, supercell_size, working_directory,
+                         desired_num_of_molecules_oneLayer)
 
 
     def cleave(self):
@@ -81,15 +87,57 @@ class OrganicSlabGenerator(SlabGenerator):
         one_layer_slab, delta_cart = self._cleave_one_layer()
         slab_list = []
         one_layer_slab = one_layer_slab[0]
-        termination_list = self._surface_termination(
-            one_layer_slab, delta_cart, None)
-        for layer in self.list_of_layers:
+        deletes = [0] * len(self.list_of_layers)
+        if self.desired_num_of_molecules_oneLayer > 0:
+            number = utils.number_of_molecules(one_layer_slab)
+            new_layers = [(self.desired_num_of_molecules_oneLayer * layer - 1) // number + 1 for layer in self.list_of_layers]
+            deletes = [new_layer * number - self.desired_num_of_molecules_oneLayer * layer
+                       for new_layer, layer in zip(new_layers, self.list_of_layers)]
+            self.list_of_layers = new_layers
+
+        termination_list = self._surface_termination( one_layer_slab, delta_cart, None)
+
+        for delete, layer in zip(deletes, self.list_of_layers):
             slabs_with_different_terminations = self._pile_to(
-                termination_list, delta_cart, layer)
+                termination_list, delta_cart, layer, c_perpendicular = False)
+            slabs_with_different_terminations = [utils.delete_molecules(slab,
+                                                                        self.working_directory,
+                                                                        self.vacuum_size, delete)
+                                                 for slab in slabs_with_different_terminations]
+            slabs_with_different_terminations = self._supercell(slabs_with_different_terminations)
             slab_list.append(slabs_with_different_terminations)
         return slab_list
 
-    def _pile_to(self, termination_list, delta_cart, layer, c_perpendicular=True):
+
+    def _supercell(self, slabs_with_different_terminations):
+        """
+        Make supercell based on reconstructed slab.
+
+        Parameters:
+        -----------
+        slabs_with_different_terminations: List[pymatgen structure].
+        
+        Returns:
+        --------
+        slabs: List[pymatgen structure].
+        """
+        if self.supercell_size is not None:
+            if self.supercell_size[-1] != 1:
+                print("Warning: Please extend c direction by cleaving more layers "
+                      "rather than make supercell! The supercell is automatically "
+                      "set to [" + str(self.supercell_size[0]) + ", " + str(self.supercell_size[1]) + ", " +
+                      "1]!")
+            supercell_size_copy = deepcopy(self.supercell_size)
+            supercell_size_copy[-1] = 1
+            slabs = [slab.make_supercell(supercell_size_copy)
+                     for slab in slabs_with_different_terminations]
+            return slabs
+        else:
+            return slabs_with_different_terminations
+
+
+    def _pile_to(self, termination_list, delta_cart, layer,
+                 c_perpendicular=True, set_vacuum=True):
         """
         Generate multiple-layer slabs by piling up one-layer slabs.
 
@@ -140,23 +188,24 @@ class OrganicSlabGenerator(SlabGenerator):
                    ).write_file(file_name)
             slab_several_layers = read(file_name)
             os.remove(file_name)
-            if self.vacuum_size is not None:
-                slab_several_layers.center(vacuum=self.vacuum_size, axis=2)
+            if set_vacuum == True:
+                if self.vacuum_size is not None:
+                    slab_several_layers.center(vacuum=self.vacuum_size, axis=2)
             if c_perpendicular is True:
                 slab_several_layers = utils.modify_cell(slab_several_layers)
             write(file_name, images=slab_several_layers)
             utils.modify_poscar(file_name)
             slab_several_layers = mg.Structure.from_file(file_name)
             os.remove(file_name)
-            if self.supercell_size is not None:
-                if self.supercell_size[-1] != 1:
-                    print("Warning: Please extend c direction by cleaving more layers "
-                          "rather than make supercell! The supercell is automatically "
-                          "set to [" + str(self.supercell_size[0]) + ", " + str(self.supercell_size[1]) + ", " +
-                          "1]!")
-                supercell_size_copy = deepcopy(self.supercell_size)
-                supercell_size_copy[-1] = 1
-                slab_several_layers.make_supercell(supercell_size_copy)
+            # if self.supercell_size is not None:
+            #     if self.supercell_size[-1] != 1:
+            #         print("Warning: Please extend c direction by cleaving more layers "
+            #               "rather than make supercell! The supercell is automatically "
+            #               "set to [" + str(self.supercell_size[0]) + ", " + str(self.supercell_size[1]) + ", " +
+            #               "1]!")
+            #     supercell_size_copy = deepcopy(self.supercell_size)
+            #     supercell_size_copy[-1] = 1
+            #     slab_several_layers.make_supercell(supercell_size_copy)
             surface_list.append(slab_several_layers.get_sorted_structure())
         return surface_list
 
@@ -575,7 +624,8 @@ def atomic_task(name,
                 list_of_layers, 
                 vacuum_size,
                 supercell_size, 
-                format_string):
+                format_string,
+                desired_num_of_molecules_oneLayer):
     """
     Atomic task to cleave a surface plane with certain Miller index for 
     different layers.
@@ -613,7 +663,8 @@ def atomic_task(name,
         list_of_layers, 
         vacuum_size, 
         supercell_size, 
-        working_dir)
+        working_dir,
+        desired_num_of_molecules_oneLayer)
     
     slab_lists = generator.cleave()
 
@@ -647,7 +698,8 @@ def cleave_for_surface_energies(structure_path,
                                 list_of_layers, 
                                 highest_index, 
                                 supercell_size, 
-                                format_string):
+                                format_string,
+                                desired_num_of_molecules_oneLayer):
     """
     Multiprocess launcher to cleave a surface plane with certain Miller index 
     for different layers.
@@ -700,7 +752,8 @@ def cleave_for_surface_energies(structure_path,
             list_of_layers, 
             vacuum_size, 
             supercell_size, 
-            format_string), 
+            format_string,
+            desired_num_of_molecules_oneLayer), 
             callback=update)
     
     p.close()

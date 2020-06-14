@@ -1422,3 +1422,79 @@ def double_find_the_gap(little_gap, big_gap, gaps, users_define_layers, tol):
         return double_find_the_gap(little_gap, medium_gap, gaps, users_define_layers, tol)
     else:
         return medium_gap
+
+
+def number_of_molecules(slab):
+    """
+    Determine how many molecules are contained in the structure
+
+    Parameters:
+    -----------
+    slab: pymatgen structure.
+    
+    Returns:
+    --------
+    len(molecules): int
+    """
+    slab_sg = StructureGraph.with_local_env_strategy(slab, JmolNN())
+    bulk_sg = slab_sg * (1, 1, 1)
+    _, molecules = get_bulk_subgraphs(bulk_structure_sg=bulk_sg)
+    return len(molecules)
+
+
+def delete_molecules(slab, working_directory, vacuum_size=None, num_to_delete=0):
+    """
+    Delete molecules from upper side to lower side to meet personal needs.
+
+    Parameters:
+    -----------
+    slab: pymatgen structure.
+    num_to_delete: int.
+        num_to_delete < len(molecules)
+
+    Returns:
+    --------
+    slab_delete: pymatgen structure.
+    """
+    if num_to_delete < 0:
+        print("WARNING: num_to_delete >= 0.\nAlready set num_to_delete = 0")
+        num_to_delete = 0
+    if num_to_delete == 0:
+        return slab
+    if num_to_delete > 0:
+        """Delete molecules after graph structure analysis"""
+        slab_delete = deepcopy(slab)
+        slab_sg = StructureGraph.with_local_env_strategy(slab_delete, JmolNN())
+        bulk_sg = slab_sg * (1, 1, 1)
+        _, molecules = get_bulk_subgraphs(bulk_structure_sg=bulk_sg)
+        if num_to_delete > len(molecules):
+            print("WARNING: num_to_delete > number_of_molecules.\nAlready set nunum_to_delete = 0")
+            num_to_delete = 0
+            return slab
+        highest_z_location = [np.max(np.array(slab_delete.lattice.get_fractional_coords(molecule.cart_coords))[:, 2])
+                             for molecule in molecules]
+        [highest_z_location, molecules] = list(
+            zip(*(sorted(zip(highest_z_location, molecules), key=lambda a: a[0], reverse=True)))
+        )
+        molecules_delete = molecules[:num_to_delete]
+        delete_sites = reduced_sites(molecules_delete, slab_delete)
+        delete_list = []
+
+        for delete_site in delete_sites:
+            for i, atom in enumerate(slab_delete):
+                if atom.is_periodic_image(delete_site):
+                    delete_list.append(i)
+                    break
+        slab_delete.remove_sites(delete_list)
+        file_name = os.path.join(working_directory, "delete_layer.POSCAR.vasp")
+        Poscar(slab_delete.get_sorted_structure()
+               ).write_file(file_name)
+        slab_delete_layer = io.read(file_name)
+        os.remove(file_name)
+        slab_delete_layer.center(vacuum=vacuum_size, axis=2)
+        io.write(file_name, images=slab_delete_layer)
+        modify_poscar(file_name)
+        slab_delete = mg.Structure.from_file(file_name)
+        os.remove(file_name)
+        return slab_delete
+

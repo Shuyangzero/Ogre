@@ -39,6 +39,8 @@ highest_index = 3
 supercell_size = None
 miller_index = 3 3 3
 ; Only needed in cleave_option = 0, ignored in cleave_option = 1
+desired_num_of_molecules_oneLayer = 0
+; Set to 0 if you don't want to change one layer structure. Default is 0 (highly recommended)
 ```
 
 
