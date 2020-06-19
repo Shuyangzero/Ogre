@@ -1,5 +1,6 @@
 # -*- coding: UTF-8 -*-
 from abc import ABC, abstractmethod
+import sys
 from ase.io import read, write
 from ase.build import surface
 from pymatgen.analysis.structure_matcher import StructureMatcher
@@ -20,7 +21,9 @@ import networkx as nx
 
 
 class SlabGenerator(ABC):
-    def __init__(self, initial_structure, miller_index, list_of_layers, vacuum_size, supercell_size, working_directory):
+    def __init__(self, initial_structure, miller_index, list_of_layers,
+                 vacuum_size, supercell_size, working_directory,
+                 desired_num_of_molecules_oneLayer):
 
         self.initial_structure = initial_structure
         self.miller_index = miller_index
@@ -28,6 +31,7 @@ class SlabGenerator(ABC):
         self.vacuum_size = vacuum_size
         self.supercell_size = supercell_size
         self.working_directory = working_directory
+        self.desired_num_of_molecules_oneLayer = desired_num_of_molecules_oneLayer
 
     @abstractmethod
     def cleave(self):
@@ -56,7 +60,6 @@ class OrganicSlabGenerator(SlabGenerator):
         Make a (a * b * 1) supercell.
     working_directory: str
         The path to save the resulting slab structures.
-        
     """
     def __init__(self, 
                  initial_structure, 
@@ -64,9 +67,11 @@ class OrganicSlabGenerator(SlabGenerator):
                  list_of_layers, 
                  vacuum_size, 
                  supercell_size, 
-                 working_directory):
+                 working_directory,
+                 desired_num_of_molecules_oneLayer):
         super().__init__(initial_structure, miller_index, list_of_layers,
-                         vacuum_size, supercell_size, working_directory)
+                         vacuum_size, supercell_size, working_directory,
+                         desired_num_of_molecules_oneLayer)
 
 
     def cleave(self):
@@ -82,15 +87,79 @@ class OrganicSlabGenerator(SlabGenerator):
         one_layer_slab, delta_cart = self._cleave_one_layer()
         slab_list = []
         one_layer_slab = one_layer_slab[0]
-        termination_list = self._surface_termination(
-            one_layer_slab, delta_cart, None)
-        for layer in self.list_of_layers:
+        deletes = [0] * len(self.list_of_layers)
+        if self.desired_num_of_molecules_oneLayer > 0:
+            number = utils.number_of_molecules(one_layer_slab)
+            new_layers = [(self.desired_num_of_molecules_oneLayer * layer - 1) // number + 1 for layer in self.list_of_layers]
+            deletes = [new_layer * number - self.desired_num_of_molecules_oneLayer * layer
+                       for new_layer, layer in zip(new_layers, self.list_of_layers)]
+            self.list_of_layers = new_layers
+
+        termination_list = self._surface_termination( one_layer_slab, delta_cart, None)
+
+        for delete, layer in zip(deletes, self.list_of_layers):
             slabs_with_different_terminations = self._pile_to(
-                termination_list, delta_cart, layer)
+                termination_list, delta_cart, layer, c_perpendicular = True)
+            slabs_with_different_terminations = [utils.delete_molecules(slab,
+                                                                        self.working_directory,
+                                                                        self.vacuum_size, delete)
+                                                 for slab in slabs_with_different_terminations]
+            slabs_with_different_terminations = self._supercell(slabs_with_different_terminations)
             slab_list.append(slabs_with_different_terminations)
         return slab_list
 
-    def _pile_to(self, termination_list, delta_cart, layer, c_perpendicular=True):
+
+    def _supercell(self, slabs_with_different_terminations):
+        """
+        Make supercell based on reconstructed slab.
+
+        Parameters:
+        -----------
+        slabs_with_different_terminations: List[pymatgen structure].
+        
+        Returns:
+        --------
+        slabs: List[pymatgen structure].
+        """
+        if self.supercell_size is not None:
+            if self.supercell_size[-1] != 1:
+                print("Warning: Please extend c direction by cleaving more layers "
+                      "rather than make supercell! The supercell is automatically "
+                      "set to [" + str(self.supercell_size[0]) + ", " + str(self.supercell_size[1]) + ", " +
+                      "1]!")
+            supercell_size_copy = deepcopy(self.supercell_size)
+            supercell_size_copy[-1] = 1
+            slabs = [slab.make_supercell(supercell_size_copy)
+                     for slab in slabs_with_different_terminations]
+            return slabs
+        else:
+            return slabs_with_different_terminations
+
+
+    def _pile_to(self, termination_list, delta_cart, layer,
+                 c_perpendicular=True, set_vacuum=True):
+        """
+        Generate multiple-layer slabs by piling up one-layer slabs.
+
+        Parameters:
+        -----------
+        termination_list: List[pymatgen structure].
+            One-layer slabs with different terminations.
+        delta_cart: List[double].
+            The differences between two adjacent layers in Cartesian
+            Coordinates.
+        layer: int.
+            The number of layers.
+        c_perpendicular: bool.
+            c_perpendicular is set to True if c direction would be
+            perpendicular to a-b side. Otherwise it is false. The defaule
+            option if True.  
+
+        Returns:
+        --------
+        surface_list: List[pymatgen structures]
+            List of generated slabs with one specific number of layer.
+        """
         surface_list = []
         slab_list = list(termination_list)
         for slab in slab_list:
@@ -119,27 +188,69 @@ class OrganicSlabGenerator(SlabGenerator):
                    ).write_file(file_name)
             slab_several_layers = read(file_name)
             os.remove(file_name)
-            if self.vacuum_size is not None:
-                slab_several_layers.center(vacuum=self.vacuum_size, axis=2)
+            if set_vacuum == True:
+                if self.vacuum_size is not None:
+                    slab_several_layers.center(vacuum=self.vacuum_size, axis=2)
             if c_perpendicular is True:
                 slab_several_layers = utils.modify_cell(slab_several_layers)
             write(file_name, images=slab_several_layers)
             utils.modify_poscar(file_name)
             slab_several_layers = mg.Structure.from_file(file_name)
             os.remove(file_name)
-            if self.supercell_size is not None:
-                if self.supercell_size[-1] != 1:
-                    print("Warning: Please extend c direction by cleaving more layers "
-                          "rather than make supercell! The supercell is automatically "
-                          "set to [" + str(self.supercell_size[0]) + ", " + str(self.supercell_size[1]) + ", " +
-                          "1]!")
-                supercell_size_copy = deepcopy(self.supercell_size)
-                supercell_size_copy[-1] = 1
-                slab_several_layers.make_supercell(supercell_size_copy)
+            # if self.supercell_size is not None:
+            #     if self.supercell_size[-1] != 1:
+            #         print("Warning: Please extend c direction by cleaving more layers "
+            #               "rather than make supercell! The supercell is automatically "
+            #               "set to [" + str(self.supercell_size[0]) + ", " + str(self.supercell_size[1]) + ", " +
+            #               "1]!")
+            #     supercell_size_copy = deepcopy(self.supercell_size)
+            #     supercell_size_copy[-1] = 1
+            #     slab_several_layers.make_supercell(supercell_size_copy)
             surface_list.append(slab_several_layers.get_sorted_structure())
         return surface_list
 
     def _cleave_one_layer(self, virtual_layers=4, virtual_vacuum=1000):
+        """
+        Main process to generate one-layer slab from bulk. The approach can be
+        briefly decribed as below:
+            1. Find all unique intact molecules from the supercell (3 x 3 x 3) of
+               original bulk. We onlly need to analyze the molecules that within that boundary
+               of original bulks or crosses the boundary due to periodicity.
+            2. Use ASE to cleave raw slabs with "virtual_layers" number of
+               layer.
+            3. After comparing all (slab) molecules with intact molecules, copy
+               all broken molecules and translate by v3 to repair broken molecules
+               that in the upper side. 
+            4. Identify redisual fragments and delete broken molecules.
+            5. Extract one-layer slab from new slabs based on periodicity.
+               There are "virtual_layers" identical layers in the slab and we just
+               need one layer of them.
+        More details about the approach could refer to paper: "Ogre: A Python Package 
+        for Molecular Crystal Surface Generation with Applications to Surface Energy and
+        Crystal Habit Prediction", FIG 3. and section B: Broken Molecule Reconstruction
+
+        Parameters:
+        -----------
+        virtual_layers: int.
+            The number of layers of raw slabs. The virtual_layers is set
+            to 4 to avoid that some molecules are cut by both upper and lower
+            boundary for more than one time. ATTENTION: This parameter should
+            be optimized to be self-adaptive to very high Miller index.
+            Otherwise, please moderately increase this number, i.e, to 8, when we
+            need to cleave high Miller index slabs.
+        virtual_vacuum: float.
+            Height of vacuum size of raw slabs, unit: Angstrom. Note that the vacuum size
+            would be added to both the bottom and the top of surface.
+
+        Returns:
+        --------
+        List[slab], delta_cart:
+        List[slab]:
+            one-layer slab list. The list actually just contain only one slab.
+        delta_cart: List[double].
+            The differences between two adjacent layers in Cartesian
+            Coordinates.
+        """
         # ATTENTION! input parameter virtual_layers could be increased, i.e, to 8, 
         # if current setting doesn't work for higher Miller index surfaces. The same for virtual_vacuum
 
@@ -316,6 +427,28 @@ class OrganicSlabGenerator(SlabGenerator):
             return [slab_temp.get_sorted_structure()], delta_cart
 
     def _extract_layer(self, slab, layers_virtual=4):
+        """
+        Step 5 in _cleave_one_layer function:
+            Extract one-layer slab from new slabs based on periodicity.
+            There are "virtual_layers" identical layers in the slab and we just
+            need one layer of them.
+
+        Parameters:
+        -----------
+        slab: pymatgen structure.
+            "virtual_layers"-layer slabs after repairing.
+        layers_virtual: int.
+            The number of layer of slab.
+
+        returns:
+        --------
+        structure, delta_cart:
+        structure: ASE structure.
+            one-layer slab.
+        delta_cart: List[double].
+            The differences between two adjacent layers in Cartesian
+            Coordinates.
+        """
         slab_incline = deepcopy(slab)
         slab_incline = utils.put_everyatom_into_cell(slab_incline)
         super_structure_sg = StructureGraph.with_local_env_strategy(slab_incline,
@@ -378,6 +511,35 @@ class OrganicSlabGenerator(SlabGenerator):
         return structure, delta_cart
 
     def _surface_termination(self, one_layer_slab, delta_move, users_define_layers=None):
+        """
+        Determine all alternative one-layer slab by analyzing terminations and
+        moving molecules from one side to another (upper side to lower side).
+        The approach is counting the species and numbers of the
+        highest c-direction atoms. 
+
+        More details could refer to paper "Ogre...", Fig 4. and
+        section C: Surface Terminations.
+
+        Parameters:
+        -----------
+        one_layer_slab: pymatgen structure.
+            One-layer slab that is generated by _cleave_one_layer() and needs to
+            be analyzed to produce other alternative one-layer slab with
+            different terminations.
+        delta_move: List[double].
+            The distance from the upper side of one-layer slab to the lower
+            side in Cartesian Coordinates.
+        users_define_layers: int.
+            Possible number of groups in one-layer slab. Once the goups are
+            defined, molecules in one group would move from one side to another
+            simultaneously. The default number is None, means that each
+            molecule makes up a group. 
+
+        Returns:
+        --------
+        slab_list: List[pymatgen structure].
+            List of one-layer slab with different terminations.
+        """
         file_name = os.path.join(
             self.working_directory, "one_layer_temp.POSCAR.vasp")
         Poscar(one_layer_slab.get_sorted_structure()).write_file(file_name)
@@ -462,7 +624,8 @@ def atomic_task(name,
                 list_of_layers, 
                 vacuum_size,
                 supercell_size, 
-                format_string):
+                format_string,
+                desired_num_of_molecules_oneLayer):
     """
     Atomic task to cleave a surface plane with certain Miller index for 
     different layers.
@@ -500,7 +663,8 @@ def atomic_task(name,
         list_of_layers, 
         vacuum_size, 
         supercell_size, 
-        working_dir)
+        working_dir,
+        desired_num_of_molecules_oneLayer)
     
     slab_lists = generator.cleave()
 
@@ -534,7 +698,8 @@ def cleave_for_surface_energies(structure_path,
                                 list_of_layers, 
                                 highest_index, 
                                 supercell_size, 
-                                format_string):
+                                format_string,
+                                desired_num_of_molecules_oneLayer):
     """
     Multiprocess launcher to cleave a surface plane with certain Miller index 
     for different layers.
@@ -587,7 +752,8 @@ def cleave_for_surface_energies(structure_path,
             list_of_layers, 
             vacuum_size, 
             supercell_size, 
-            format_string), 
+            format_string,
+            desired_num_of_molecules_oneLayer), 
             callback=update)
     
     p.close()
