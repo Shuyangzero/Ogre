@@ -1,7 +1,6 @@
 
-
-#from ogre.utils import convergence_plots
-
+import json
+from ogre.utils import convergence_plots
 
 convergence_plots_kw = \
 {
@@ -15,5 +14,9 @@ convergence_plots_kw = \
     "boettger": True,
     "combined_figure": True
 }
+results_file = "results.json"
 
-convergence_plots(**convergence_plots_kw)
+results = convergence_plots(**convergence_plots_kw)
+
+with open(results_file,"w") as f:
+    f.write(json.dumps(results, indent=4))
