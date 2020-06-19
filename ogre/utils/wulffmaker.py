@@ -170,7 +170,7 @@ def wulffmaker_gamma(energy):
     Arguments
     ---------
     energy: iterable
-        Any iterable that holds the surfac energies
+        Any iterable that holds the surface energies
     
     Returns
     -------

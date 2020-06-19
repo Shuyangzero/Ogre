@@ -20,3 +20,4 @@ results = convergence_plots(**convergence_plots_kw)
 
 with open(results_file,"w") as f:
     f.write(json.dumps(results, indent=4))
+    
