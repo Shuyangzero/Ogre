@@ -35,7 +35,7 @@ OgreSWAMP
 Unique Surfaces
 ~~~~~~~~~~~~~~~
 
-Include the algorithm flow chart3
+Include the algorithm flow chart. 
 
 
 Surface energy and convergence plots
@@ -48,9 +48,7 @@ images.
 Wulffmaker
 ~~~~~~~~~~
 
-This will describe how this code utilizes Wulffmaker
-
-
+This will describe how this code utilizes Wulffmaker. Include images of where each string should be pasted into the Wulffmaker source code. Include a description of the legend that is generated. Include description of the str2tuple function. Use Aspirin as example, so include lattice and space group information.  
 
 Code Reference
 --------------
