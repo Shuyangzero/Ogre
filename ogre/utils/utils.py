@@ -23,6 +23,17 @@ import time
 from functools import wraps
 
 
+def from_ASE_to_pymatgen(images):
+    """
+    change ASE structure to pymatgen structure
+    """
+    file_name = "temp.POSCAR.vasp"
+    io.write(file_name, images)
+    modify_poscar(file_name)
+    slab = mg.Structure.from_file(file_name)
+    os.remove(file_name)
+    return slab
+
 def modify_poscar(file):
     """
     Change the file to compliant POSCAR.
@@ -717,6 +728,41 @@ def get_bulk_subgraphs(bulk_structure_sg):
         molecules.append(molecule)
     return super_subgraphs, molecules
 
+
+def get_bulk_subgraphs_v2(bulk_structure_sg):
+    """
+    Get all subgraphs of molecules that within or crosses the boundary of
+    original bulk.
+
+    Parameters:
+    -----------
+    bulk_structure_sg: StructureGraph.
+        The structure graph of bulk with local env strategy.
+
+    Returns:
+    --------
+    super_graphs : List[graph].
+        Represent the subgraphs of molecules that within or crosses the
+        boundary of original bulk. 
+    molecules : List[molecule].
+        Molecules that are correlated to the subgraphs.
+    """
+    bulk_super_structure_sg_graph = nx.Graph(bulk_structure_sg.graph)
+    all_super_subgraphs = list(nx.connected_component_subgraphs
+                               (bulk_super_structure_sg_graph))
+    for subgraph in all_super_subgraphs:
+        for n in subgraph:
+            subgraph.add_node(n,
+                              specie=str(bulk_structure_sg.structure[n].specie))
+    molecules = []
+    for subgraph in all_super_subgraphs:
+        coords = [bulk_structure_sg.structure[n].coords
+                  for n in subgraph.nodes()]
+        species = [bulk_structure_sg.structure[n].specie
+                   for n in subgraph.nodes()]
+        molecule = mg.Molecule(species=species, coords=coords)
+        molecules.append(molecule)
+    return all_super_subgraphs, molecules
 
 def get_bulk_subgraphs_unique(bulk_structure_sg):
     """

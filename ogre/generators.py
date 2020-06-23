@@ -1,5 +1,6 @@
 # -*- coding: UTF-8 -*-
 from abc import ABC, abstractmethod
+from ogre.utils.utils import from_ASE_to_pymatgen
 import sys
 from ase.io import read, write
 from ase.build import surface
@@ -84,7 +85,7 @@ class OrganicSlabGenerator(SlabGenerator):
             list of list of slabs for the required list of layers. Each list 
             contains one or multiple terminations.
         """
-        one_layer_slab, delta_cart = self._cleave_one_layer()
+        one_layer_slab, delta_cart = self._cleave_one_layer_v2()
         slab_list = []
         one_layer_slab = one_layer_slab[0]
         deletes = [0] * len(self.list_of_layers)
@@ -425,6 +426,170 @@ class OrganicSlabGenerator(SlabGenerator):
             print("The {} slab with {} layers can not be reconstructed. And the result refers to ASE's surfaces. Please "
                   "try the graph_repair method!".format(self.miller_index, 1))
             return [slab_temp.get_sorted_structure()], delta_cart
+
+
+    def _cleave_one_layer_v2(self, virtual_layers=4, virtual_vacuum=1000):
+        """
+        Main process (version 2) to generate one-layer slab from bulk. This
+        process doesn't compare two graphs to check whether they are
+        isomorphic. So, this approach would be faster and more accurate.
+
+        Parameters:
+        -----------
+        virtual_layers: int.
+            The number of layers of raw slabs. The virtual_layers is set
+            to 4 to avoid that some molecules are cut by both upper and lower
+            boundary for more than one time. ATTENTION: This parameter should
+            be optimized to be self-adaptive to very high Miller index.
+            Otherwise, please moderately increase this number, i.e, to 8, when we
+            need to cleave high Miller index slabs.
+        virtual_vacuum: float.
+            Height of vacuum size of raw slabs, unit: Angstrom. Note that the vacuum size
+            would be added to both the bottom and the top of surface.
+
+        Returns:
+        --------
+        List[slab], delta_cart:
+        List[slab]:
+            one-layer slab list. The list actually just contain only one slab.
+        delta_cart: List[double].
+            The differences between two adjacent layers in Cartesian
+            Coordinates.
+        """
+        while True:
+            virtual_slab = utils.surface(self.initial_structure, self.miller_index, virtual_layers)
+            double_virtual_slab = utils.surface(self.initial_structure, self.miller_index, 2 * virtual_layers)
+
+            slab_1 = from_ASE_to_pymatgen(virtual_slab)
+            slab_2 = from_ASE_to_pymatgen(double_virtual_slab)
+
+            # Delete all molecules in slab_2
+            delete_list = range(len(slab_2))
+            slab_2.remove_sites(delete_list)
+
+            slab_sg = StructureGraph.with_local_env_strategy(slab_1, JmolNN())
+            slab_sg_extend = slab_sg * (1, 1, 1)
+
+            slab_sg_graph = nx.Graph(slab_sg_extend.graph)
+            super_graphs = list(nx.connected_component_subgraphs(slab_sg_graph))
+
+            # subgraph_that needed to be added!!
+            subgraph_added = []
+            print("There're {} molecules in the super bulk".format(len(super_graphs)))
+            ii = 0
+            while ii < len(super_graphs):
+                subgraph = super_graphs[ii]
+                out_boundary = all([list(d['to_jimage'])[2] == 0  for u, v, d in
+                                   subgraph.edges(data=True)])
+                ii += 1
+                if not out_boundary:
+                    ii -= 1
+                    super_graphs.remove(subgraph)
+                    subgraph_added.append(subgraph)
+
+            print("{} molecules are moved.".format(len(subgraph_added)))
+            if len(super_graphs) >= 1.5 * len(subgraph_added):
+                break
+            else:
+                virtual_layers *= 2
+
+
+        for subgraph in super_graphs:
+            for n in subgraph:
+                subgraph.add_node(n, specie = str(slab_sg_extend.structure[n].specie))
+
+        for subgraph in subgraph_added:
+            for n in subgraph:
+                subgraph.add_node(n, specie = str(slab_sg_extend.structure[n].specie))
+
+        molecules_old = []
+        for subgraph in super_graphs:
+            coords = [slab_sg_extend.structure[n].coords
+                      for n in subgraph.nodes()]
+            species = [slab_sg_extend.structure[n].specie
+                       for n in subgraph.nodes()]
+            molecule = mg.Molecule(species=species, coords=coords)
+            molecules_old.append(molecule)
+
+
+        delta = np.array(slab_1.lattice.matrix[-1])
+
+        molecules_added = []
+        for subgraph in subgraph_added:
+            coords = [np.array(slab_sg_extend.structure[n].coords) + delta
+                      for n in subgraph.nodes()]
+            species = [slab_sg_extend.structure[n].specie
+                       for n in subgraph.nodes()]
+            molecule = mg.Molecule(species=species, coords=coords)
+            molecules_added.append(molecule)
+
+        broken_molecules_num = len(molecules_added)
+
+        # add broken molecules to slab_2
+        sites = []
+        for molecule in molecules_added:
+            for curr_site in molecule:
+                curr_site = mg.PeriodicSite(curr_site.specie,
+                                            curr_site.coords,
+                                            slab_2.lattice,
+                                            coords_are_cartesian=True)
+                tmp = [curr_site.is_periodic_image(site) for site in sites]
+                if not any(tmp):
+                    sites.append(curr_site)
+
+        for site in sites:
+            slab_2.append(species=site.specie, coords=site.coords, coords_are_cartesian=True)
+
+        # move upper broken molecules to lower
+        one_layer_sg = StructureGraph.with_local_env_strategy(
+            slab_2, JmolNN())
+        bulk_sg = one_layer_sg * (1, 1, 1)
+        subgraphs, molecules = utils.get_bulk_subgraphs_v2(
+            bulk_structure_sg=bulk_sg)
+
+        number_of_molecules_to_move = len(molecules) - broken_molecules_num
+        while(number_of_molecules_to_move != 0):
+            highest_z_locations = [np.max(np.array(slab_2.lattice.get_fractional_coords(molecule.cart_coords))[:, 2])
+                                   for molecule in molecules]
+
+            [highest_z_locations, molecules] = list(
+                zip(*(sorted(zip(highest_z_locations, molecules), key=lambda a: a[0], reverse=True))))
+            print(highest_z_locations[0])
+
+            slab_2 = utils.move_molecule(molecules[:(number_of_molecules_to_move // 2 if number_of_molecules_to_move // 2 > 1 else 1)], slab_2, delta)
+            one_layer_sg = StructureGraph.with_local_env_strategy(
+                slab_2, JmolNN())
+            bulk_sg = one_layer_sg * (1, 1, 1)
+            subgraphs, molecules = utils.get_bulk_subgraphs_v2(
+                bulk_structure_sg=bulk_sg)
+
+            print("The number of molecules that are broken after moved is {}".format(len(molecules)))
+            number_of_molecules_to_move = len(molecules) - broken_molecules_num
+
+        sites = []
+        for molecule in molecules_old:
+            for curr_site in molecule:
+                curr_site = mg.PeriodicSite(curr_site.specie,
+                                            curr_site.coords,
+                                            slab_2.lattice,
+                                            coords_are_cartesian=True)
+                tmp = [curr_site.is_periodic_image(site) for site in sites]
+                if not any(tmp):
+                    sites.append(curr_site)
+
+        for site in sites:
+            slab_2.append(species=site.specie, coords=site.coords, coords_are_cartesian=True)
+
+        file_name = os.path.join(
+            self.working_directory, 'slab_2.POSCAR.vasp')
+        Poscar(slab_2.get_sorted_structure()).write_file(file_name)
+        slab_2 = read(file_name)
+        os.remove(file_name)
+        slab_2.center(vacuum=virtual_vacuum, axis = 2)
+        slab, delta_cart = self._extract_layer(from_ASE_to_pymatgen(slab_2), virtual_layers)
+        slab = from_ASE_to_pymatgen(slab)
+        return [slab.get_sorted_structure()], delta_cart
+
 
     def _extract_layer(self, slab, layers_virtual=4):
         """
