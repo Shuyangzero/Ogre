@@ -85,7 +85,7 @@ class OrganicSlabGenerator(SlabGenerator):
             list of list of slabs for the required list of layers. Each list 
             contains one or multiple terminations.
         """
-        one_layer_slab, delta_cart = self._cleave_one_layer_v2()
+        one_layer_slab, delta_cart = self._cleave_one_layer_v3()
         slab_list = []
         one_layer_slab = one_layer_slab[0]
         deletes = [0] * len(self.list_of_layers)
@@ -589,6 +589,60 @@ class OrganicSlabGenerator(SlabGenerator):
         slab, delta_cart = self._extract_layer(from_ASE_to_pymatgen(slab_2), virtual_layers)
         slab = from_ASE_to_pymatgen(slab)
         return [slab.get_sorted_structure()], delta_cart
+
+
+    def _cleave_one_layer_v3(self, virtual_vacuum=15):
+        """
+        Main process (version 3) to generate one-layer slab from bulk. This 
+        approach would be faster and more accurate than v1 and v2.
+
+        Parameters:
+        -----------
+        virtual_vacuum: float.
+            Height of vacuum size of raw slabs, unit: Angstrom. Note that the vacuum size
+            would be added to both the bottom and the top of surface.
+
+        Returns:
+        --------
+        List[slab], delta_cart:
+
+        List[slab]:
+            one-layer slab list. The list actually just contain only one slab.
+        delta_cart: List[double].
+            The differences between two adjacent layers in Cartesian
+            Coordinates.
+        """
+        slab_first = utils.surface(self.initial_structure, self.miller_index, layers=1)
+        slab_first = from_ASE_to_pymatgen(slab_first)
+        slab_first_sg = StructureGraph.with_local_env_strategy(slab_first, JmolNN())
+        slab_first_sg = slab_first_sg * (1, 1, 1)
+        delta_cart, _, molecules = utils.get_bulk_subgraphs_v3(slab_first,
+                                                               bulk_structure_sg=slab_first_sg) 
+        delete_list = range(len(slab_first))
+        slab_first.remove_sites(delete_list)
+        sites = []
+        for molecule in molecules:
+            for curr_site in molecule:
+                curr_site = mg.PeriodicSite(curr_site.specie,
+                                            curr_site.coords,
+                                            slab_first.lattice,
+                                            coords_are_cartesian=True)
+                tmp = [curr_site.is_periodic_image(site) for site in sites]
+                if not any(tmp):
+                    sites.append(curr_site)
+
+        for site in sites:
+            slab_first.append(species=site.specie, coords=site.coords, coords_are_cartesian=True)
+
+        file_name = os.path.join(
+            self.working_directory, 'slab_first.POSCAR.vasp')
+        Poscar(slab_first.get_sorted_structure()).write_file(file_name)
+        slab_ASE = read(file_name)
+        os.remove(file_name)
+        slab_ASE.center(vacuum=virtual_vacuum, axis = 2)
+        slab = from_ASE_to_pymatgen(slab_ASE)
+        return [slab.get_sorted_structure()], delta_cart
+
 
 
     def _extract_layer(self, slab, layers_virtual=4):

@@ -21,6 +21,7 @@ import os
 import sys
 import time
 from functools import wraps
+from collections import Counter
 
 
 def from_ASE_to_pymatgen(images):
@@ -763,6 +764,82 @@ def get_bulk_subgraphs_v2(bulk_structure_sg):
         molecule = mg.Molecule(species=species, coords=coords)
         molecules.append(molecule)
     return all_super_subgraphs, molecules
+
+
+def get_bulk_subgraphs_v3(slab_first, bulk_structure_sg):
+    """
+    Get all subgraphs of molecules that within or crosses the boundary of
+    original bulk and generate HashGraph to modify atoms' positions.
+
+    Parameters:
+    -----------
+    slab_first: pymatgen structure.
+        Original slab structure that cleaved by ASE
+    bulk_structure_sg: StructureGraph.
+        The structure graph of bulk with local env strategy.
+
+    Returns:
+    --------
+    delta_cart: List[float].
+        c_difference between two adajacent layers.
+    super_graphs : List[graph].
+        Represent the subgraphs of molecules that within or crosses the
+        boundary of original bulk. 
+    molecules : List[molecule].
+        Molecules that are correlated to the subgraphs.
+    """
+    bulk_super_structure_sg_graph = nx.Graph(bulk_structure_sg.graph)
+    all_super_subgraphs = list(nx.connected_component_subgraphs
+                               (bulk_super_structure_sg_graph))
+    for subgraph in all_super_subgraphs:
+        for n in subgraph:
+            subgraph.add_node(n,
+                              specie=str(bulk_structure_sg.structure[n].specie))
+    frac_coods = [0] * len(bulk_structure_sg.structure)
+    initial_index = -100
+    molecules = []
+    for subgraph in all_super_subgraphs:
+        HashGraph = {}
+        for u, v, d in subgraph.edges(data=True):
+            change_z = list(d['to_jimage'])[-1]
+            if change_z != 0:
+                change_z = 1 if slab_first.lattice.get_fractional_coords(bulk_structure_sg.structure[u].coords)[-1] > slab_first.lattice.get_fractional_coords(bulk_structure_sg.structure[v].coords)[-1] else -1
+            try:
+                HashGraph[str(u)].append([str(v), change_z])
+            except KeyError:
+                HashGraph[str(u)] = [initial_index, [str(v), change_z]]
+            try:
+                HashGraph[str(v)].append([str(u), -change_z])
+            except KeyError:
+                HashGraph[str(v)] = [initial_index, [str(u), -change_z]]
+        first_node = list(HashGraph.keys())[0]
+        count = 1
+        HashGraph[first_node][0] = 0
+        Pending_node = [first_node]
+        Pending_node_2 = []
+        while(count < len(list(HashGraph.keys()))):
+            for node in Pending_node:
+                for value in HashGraph[node][1: ]:
+                    if HashGraph[value[0]][0] == initial_index:
+                        count += 1
+                        HashGraph[value[0]][0] = HashGraph[node][0] + value[1]
+                        Pending_node_2.append(value[0])
+            Pending_node = deepcopy(Pending_node_2)
+            Pending_node_2 = []
+        # min_z = min([value[0] for value in HashGraph.values()])
+        min_z = int(Counter([value[0] for value in HashGraph.values()]).most_common(1)[0][0])
+        delta = np.array(slab_first.lattice.matrix[-1])
+        for key in HashGraph.keys():
+            HashGraph[key][0] -= min_z
+
+        coords = [bulk_structure_sg.structure[n].coords + delta * HashGraph[str(n)][0]
+                  for n in subgraph.nodes()]
+        species = [bulk_structure_sg.structure[n].specie
+                   for n in subgraph.nodes()]
+        molecule = mg.Molecule(species=species, coords=coords)
+        molecules.append(molecule)
+    return delta, all_super_subgraphs, molecules
+
 
 def get_bulk_subgraphs_unique(bulk_structure_sg):
     """
