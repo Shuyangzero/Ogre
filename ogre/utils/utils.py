@@ -24,11 +24,11 @@ from functools import wraps
 from collections import Counter
 
 
-def from_ASE_to_pymatgen(images):
+def from_ASE_to_pymatgen(working_dir, images):
     """
     change ASE structure to pymatgen structure
     """
-    file_name = "temp.POSCAR.vasp"
+    file_name = working_dir + "/temp.POSCAR.vasp"
     io.write(file_name, images)
     modify_poscar(file_name)
     slab = mg.Structure.from_file(file_name)

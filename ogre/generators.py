@@ -460,8 +460,8 @@ class OrganicSlabGenerator(SlabGenerator):
             virtual_slab = utils.surface(self.initial_structure, self.miller_index, virtual_layers)
             double_virtual_slab = utils.surface(self.initial_structure, self.miller_index, 2 * virtual_layers)
 
-            slab_1 = from_ASE_to_pymatgen(virtual_slab)
-            slab_2 = from_ASE_to_pymatgen(double_virtual_slab)
+            slab_1 = from_ASE_to_pymatgen(self.working_directory, virtual_slab)
+            slab_2 = from_ASE_to_pymatgen(self.working_directory, double_virtual_slab)
 
             # Delete all molecules in slab_2
             delete_list = range(len(slab_2))
@@ -586,8 +586,8 @@ class OrganicSlabGenerator(SlabGenerator):
         slab_2 = read(file_name)
         os.remove(file_name)
         slab_2.center(vacuum=virtual_vacuum, axis = 2)
-        slab, delta_cart = self._extract_layer(from_ASE_to_pymatgen(slab_2), virtual_layers)
-        slab = from_ASE_to_pymatgen(slab)
+        slab, delta_cart = self._extract_layer(from_ASE_to_pymatgen(self.working_directory, slab_2), virtual_layers)
+        slab = from_ASE_to_pymatgen(self.working_directory, slab)
         return [slab.get_sorted_structure()], delta_cart
 
 
@@ -613,7 +613,7 @@ class OrganicSlabGenerator(SlabGenerator):
             Coordinates.
         """
         slab_first = utils.surface(self.initial_structure, self.miller_index, layers=1)
-        slab_first = from_ASE_to_pymatgen(slab_first)
+        slab_first = from_ASE_to_pymatgen(self.working_directory, slab_first)
         slab_first_sg = StructureGraph.with_local_env_strategy(slab_first, JmolNN())
         slab_first_sg = slab_first_sg * (1, 1, 1)
         delta_cart, _, molecules = utils.get_bulk_subgraphs_v3(slab_first,
@@ -640,7 +640,7 @@ class OrganicSlabGenerator(SlabGenerator):
         slab_ASE = read(file_name)
         os.remove(file_name)
         slab_ASE.center(vacuum=virtual_vacuum, axis = 2)
-        slab = from_ASE_to_pymatgen(slab_ASE)
+        slab = from_ASE_to_pymatgen(self.working_directory, slab_ASE)
         return [slab.get_sorted_structure()], delta_cart
 
 
@@ -950,6 +950,7 @@ def cleave_for_surface_energies(structure_path,
     if not os.path.isdir(structure_name):
         os.mkdir(structure_name)
     up = UniquePlanes(initial_structure, index=highest_index, verbose=False)
+    # p = Pool(processes=1)
     p = Pool()
     unique_idx = set()
     for x  in up.unique_idx:
