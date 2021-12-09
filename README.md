@@ -3,6 +3,11 @@
 
 Ogre is written in Python and interfaces with the FHI-aims code to calculate surface energies at the level of density functional theory (DFT). The input of Ogre is the geometry of the bulk molecular crystal. The surface is cleaved from the bulk structure with the molecules on the surface kept intact. A slab model is constructed according to the user specifications for the number of molecular layers and the length of the vacuum region. Ogre automatically identifies all symmetrically unique surfaces for the user-specified Miller indices and detects all possible surface terminations. Ogre includes utilities, OgreSWAMP, to analyze the surface energy convergence and Wulff shape of the molecular crystal. 
 
+## Citation
+Please cite
+```
+Yang, Shuyang, et al. "Ogre: A Python package for molecular crystal surface generation with applications to surface energy and crystal habit prediction." The Journal of Chemical Physics 152.24 (2020): 244122.
+```
 ## Installation
 ```bash
 conda create -n ogre python=3.6
