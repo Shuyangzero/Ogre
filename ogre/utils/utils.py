@@ -29,10 +29,13 @@ def from_ASE_to_pymatgen(working_dir, images):
     change ASE structure to pymatgen structure
     """
     file_name = working_dir + "/temp.POSCAR.vasp"
-    io.write(file_name, images)
-    modify_poscar(file_name)
-    slab = mg.Structure.from_file(file_name)
+    io.write(file_name, images,parallel=False)
+    #modify_poscar(file_name)
+    #add here
+    io.write("test_struct.cif", images,format= "cif",parallel=False)
+    slab = mg.Structure.from_file("test_struct.cif")
     os.remove(file_name)
+    os.remove("test_struct.cif")
     return slab
 
 def modify_poscar(file):
