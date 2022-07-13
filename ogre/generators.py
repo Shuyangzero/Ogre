@@ -169,10 +169,10 @@ class OrganicSlabGenerator(SlabGenerator):
                 self.working_directory, "one_layer.POSCAR.vasp")
             Poscar(slab_one_layer_incline.get_sorted_structure()
                    ).write_file(file_name)
-            slab_one_layer_incline = read(file_name)
+            slab_one_layer_incline = read(file_name,parallel=False)
             slab_one_layer_incline.center(vacuum=1000, axis=2)
             os.remove(file_name)
-            write(file_name, images=slab_one_layer_incline)
+            write(file_name, images=slab_one_layer_incline,parallel=False)
             utils.modify_poscar(file_name)
             slab_one_layer_incline = mg.Structure.from_file(file_name)
             os.remove(file_name)
@@ -187,14 +187,14 @@ class OrganicSlabGenerator(SlabGenerator):
                                                   coords_are_cartesian=True)
             Poscar(slab_one_layer_incline.get_sorted_structure()
                    ).write_file(file_name)
-            slab_several_layers = read(file_name)
+            slab_several_layers = read(file_name,parallel=False)
             os.remove(file_name)
             if set_vacuum == True:
                 if self.vacuum_size is not None:
                     slab_several_layers.center(vacuum=self.vacuum_size, axis=2)
             if c_perpendicular is True:
                 slab_several_layers = utils.modify_cell(slab_several_layers)
-            write(file_name, images=slab_several_layers)
+            write(file_name, images=slab_several_layers,parallel=False)
             utils.modify_poscar(file_name)
             slab_several_layers = mg.Structure.from_file(file_name)
             os.remove(file_name)
@@ -256,7 +256,7 @@ class OrganicSlabGenerator(SlabGenerator):
         # if current setting doesn't work for higher Miller index surfaces. The same for virtual_vacuum
 
         write(os.path.join(self.working_directory, 'bulk.POSCAR.vasp'),
-              self.initial_structure, format="vasp")
+              self.initial_structure, format="vasp",parallel=False)
         utils.modify_poscar(os.path.join(
             self.working_directory, 'bulk.POSCAR.vasp'))
         bulk = mg.Structure.from_file(
@@ -275,7 +275,7 @@ class OrganicSlabGenerator(SlabGenerator):
         file_name = os.path.join(
             self.working_directory, "ASE_surface.POSCAR.vasp")
         format_ = 'vasp'
-        write(file_name, format=format_, images=slab)
+        write(file_name, format=format_, images=slab,parallel=False)
         utils.modify_poscar(file_name)
         slab_temp = mg.Structure.from_file(file_name)
 
@@ -287,7 +287,7 @@ class OrganicSlabGenerator(SlabGenerator):
 
         file_name = os.path.join(
             self.working_directory, 'slab_before.POSCAR.vasp')
-        write(file_name, format=format_, images=slab)
+        write(file_name, format=format_, images=slab,parallel=False)
         utils.modify_poscar(file_name)
         slab_move = mg.Structure.from_file(file_name)
         os.remove(file_name)
@@ -319,7 +319,7 @@ class OrganicSlabGenerator(SlabGenerator):
                                    "AlreadyMove.POSCAR.vasp"))
             temp_file_name = os.path.join(
                 self.working_directory, "temp.POSCAR.vasp")
-            write(temp_file_name, slab_move)
+            write(temp_file_name, slab_move,parallel=False)
             utils.modify_poscar(temp_file_name)
             slab_move = mg.Structure.from_file(temp_file_name)
             os.remove(temp_file_name)
@@ -348,7 +348,7 @@ class OrganicSlabGenerator(SlabGenerator):
             slab, delta_cart = self._extract_layer(slab, virtual_layers)
             temp_file_name = os.path.join(
                 self.working_directory, "temp.POSCAR.vasp")
-            write(temp_file_name, slab)
+            write(temp_file_name, slab,parallel=False)
             utils.modify_poscar(temp_file_name)
             slab = mg.Structure.from_file(temp_file_name)
             os.remove(temp_file_name)
@@ -417,7 +417,7 @@ class OrganicSlabGenerator(SlabGenerator):
             slab, delta_cart = self._extract_layer(slab, virtual_layers)
             output_file = os.path.join(
                 self.working_directory, "Orge_surface.POSCAR.vasp")
-            write(output_file, slab)
+            write(output_file, slab,parallel=False)
             utils.modify_poscar(output_file)
             slab = mg.Structure.from_file(output_file)
             os.remove(output_file)
@@ -583,7 +583,7 @@ class OrganicSlabGenerator(SlabGenerator):
         file_name = os.path.join(
             self.working_directory, 'slab_2.POSCAR.vasp')
         Poscar(slab_2.get_sorted_structure()).write_file(file_name)
-        slab_2 = read(file_name)
+        slab_2 = read(file_name,parallel=False)
         os.remove(file_name)
         slab_2.center(vacuum=virtual_vacuum, axis = 2)
         slab, delta_cart = self._extract_layer(from_ASE_to_pymatgen(self.working_directory, slab_2), virtual_layers)
@@ -637,7 +637,7 @@ class OrganicSlabGenerator(SlabGenerator):
         file_name = os.path.join(
             self.working_directory, 'slab_first.POSCAR.vasp')
         Poscar(slab_first.get_sorted_structure()).write_file(file_name)
-        slab_ASE = read(file_name)
+        slab_ASE = read(file_name,parallel=False)
         os.remove(file_name)
         slab_ASE.center(vacuum=virtual_vacuum, axis = 2)
         slab = from_ASE_to_pymatgen(self.working_directory, slab_ASE)
@@ -724,7 +724,7 @@ class OrganicSlabGenerator(SlabGenerator):
 
         # find the structure, next we need to find the periodicity
         format_ = 'vasp'
-        structure = io.read(file_name, format=format_)
+        structure = io.read(file_name, format=format_,parallel=False)
         os.remove(file_name)
         structure.center(vacuum=15, axis=2)
         return structure, delta_cart
@@ -762,7 +762,7 @@ class OrganicSlabGenerator(SlabGenerator):
         file_name = os.path.join(
             self.working_directory, "one_layer_temp.POSCAR.vasp")
         Poscar(one_layer_slab.get_sorted_structure()).write_file(file_name)
-        one_layer_temp = io.read(file_name)
+        one_layer_temp = io.read(file_name,parallel=False)
         os.remove(file_name)
         one_layer_temp.center(vacuum=15, axis=2)
         if delta_move is None:
@@ -772,7 +772,7 @@ class OrganicSlabGenerator(SlabGenerator):
         one_layer_temp.center(vacuum=1000, axis=2)
         file_name = os.path.join(
             self.working_directory, " one_layer_temp.POSCAR.vasp")
-        io.write(file_name, images=one_layer_temp)
+        io.write(file_name, images=one_layer_temp,parallel=False)
         utils.modify_poscar(file_name)
         one_layer = mg.Structure.from_file(file_name)
         os.remove(file_name)
@@ -821,7 +821,7 @@ class OrganicSlabGenerator(SlabGenerator):
             file_name = os.path.join(
                 self.working_directory, "primitive_onelayer_" + str(index) + ".POSCAR.vasp")
             Poscar(slab.get_sorted_structure()).write_file(file_name)
-            slab_temp = io.read(file_name)
+            slab_temp = io.read(file_name,parallel=False)
             os.remove(file_name)
             slab_temp.center(vacuum=15, axis=2)
             slab_temp_list.append(slab_temp)
@@ -830,7 +830,7 @@ class OrganicSlabGenerator(SlabGenerator):
             file_name = os.path.join(
                 self.working_directory, "primitive_onelayer_" + str(index) + ".POSCAR.vasp")
             # slab_temp.set_cell(cell)
-            io.write(file_name, images=slab_temp)
+            io.write(file_name, images=slab_temp,parallel=False)
             utils.modify_poscar(file_name)
             slab_list[index] = mg.Structure.from_file(file_name)
             os.remove(file_name)
@@ -897,7 +897,7 @@ def atomic_task(name,
                             i)
             Poscar(slab).write_file(poscar_str)
             
-            slab_ase = read(poscar_str)
+            slab_ase = read(poscar_str,parallel=False)
             os.remove(poscar_str)
             write("{}/{}.{}.{}.{}.{}"
                   .format(name, 
@@ -906,7 +906,7 @@ def atomic_task(name,
                           layers, 
                           i, 
                           format_dict[format_string]), 
-                          slab_ase)
+                          slab_ase,parallel=False)
                   
     shutil.rmtree(working_dir)
 
@@ -946,7 +946,7 @@ def cleave_for_surface_energies(structure_path,
         The format of output file, could be "VASP", "FHI" or "CIF".
         
     """
-    initial_structure = read(structure_path)
+    initial_structure = read(structure_path,parallel=False)
     if not os.path.isdir(structure_name):
         os.mkdir(structure_name)
     up = UniquePlanes(initial_structure, index=highest_index, verbose=False)
