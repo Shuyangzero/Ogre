@@ -193,9 +193,9 @@ class OrganicSlabGenerator(SlabGenerator):
                     slab_one_layer_incline.append(species[index], new_coord,
                                                   coords_are_cartesian=True)
             Poscar(slab_one_layer_incline.get_sorted_structure()
-                   ).write_file(file_name)
-            slab_several_layers = read(file_name,parallel=False)
-            os.remove(file_name)
+                   ).write_file(file_name2)
+            slab_several_layers = read(file_name2,parallel=False)
+            os.remove(file_name2)
             if set_vacuum == True:
                 if self.vacuum_size is not None:
                     slab_several_layers.center(vacuum=self.vacuum_size, axis=2)
