@@ -165,22 +165,15 @@ class OrganicSlabGenerator(SlabGenerator):
         slab_list = list(termination_list)
         for slab in slab_list:
             slab_one_layer_incline = deepcopy(slab)
-            file_name2 = os.path.join(
-                self.working_directory, "one_layer.POSCAR.vasp")
-
-            ##added here#######
             file_name = os.path.join(
-                self.working_directory, "one_layer.cif")
-
-            ######
+                self.working_directory, "one_layer.POSCAR.vasp")
             Poscar(slab_one_layer_incline.get_sorted_structure()
-                   ).write_file(file_name2)
-            slab_one_layer_incline = read(file_name2,parallel=False)
+                   ).write_file(file_name)
+            slab_one_layer_incline = read(file_name,parallel=False)
             slab_one_layer_incline.center(vacuum=1000, axis=2)
-            os.remove(file_name2)
-            #print("file_name before third write is {}".format(file_name),flush=True)
-            write(file_name, images=slab_one_layer_incline,format = "cif",parallel=False)
-            #utils.modify_poscar(file_name)
+            os.remove(file_name)
+            write(file_name, images=slab_one_layer_incline,parallel=False)
+            utils.modify_poscar(file_name)
             slab_one_layer_incline = mg.Structure.from_file(file_name)
             os.remove(file_name)
             # slab_several_layers = slab_one_layer_incline * (1, 1, layer)
@@ -201,8 +194,8 @@ class OrganicSlabGenerator(SlabGenerator):
                     slab_several_layers.center(vacuum=self.vacuum_size, axis=2)
             if c_perpendicular is True:
                 slab_several_layers = utils.modify_cell(slab_several_layers)
-            write(file_name, images=slab_several_layers,format = "cif",parallel=False)
-            #utils.modify_poscar(file_name)
+            write(file_name, images=slab_several_layers,parallel=False)
+            utils.modify_poscar(file_name)
             slab_several_layers = mg.Structure.from_file(file_name)
             os.remove(file_name)
             # if self.supercell_size is not None:
@@ -777,13 +770,10 @@ class OrganicSlabGenerator(SlabGenerator):
         else:
             delta = delta_move
         one_layer_temp.center(vacuum=1000, axis=2)
-        #file_name = os.path.join(
-            #self.working_directory, " one_layer_temp.POSCAR.vasp")
-        #io.write(file_name, images=one_layer_temp,parallel=False)
         file_name = os.path.join(
-            self.working_directory, "one_layer_temp.cif")
-        io.write(file_name, images=one_layer_temp,format = "cif",parallel=False)
-        #utils.modify_poscar(file_name)
+            self.working_directory, " one_layer_temp.POSCAR.vasp")
+        io.write(file_name, images=one_layer_temp,parallel=False)
+        utils.modify_poscar(file_name)
         one_layer = mg.Structure.from_file(file_name)
         os.remove(file_name)
         one_layer = utils.put_everyatom_into_cell(one_layer)
@@ -839,15 +829,9 @@ class OrganicSlabGenerator(SlabGenerator):
         for index, slab_temp in enumerate(slab_temp_list):
             file_name = os.path.join(
                 self.working_directory, "primitive_onelayer_" + str(index) + ".POSCAR.vasp")
-            ### add here
-            file_name = os.path.join(
-                self.working_directory, "primitive_onelayer_" + str(index) + ".cif")
-
-            #########3
             # slab_temp.set_cell(cell)
-            #print("file_name before second write is {}".format(file_name),flush=True)
-            io.write(file_name, images=slab_temp,format = "cif",parallel=False)
-            #utils.modify_poscar(file_name)
+            io.write(file_name, images=slab_temp,parallel=False)
+            utils.modify_poscar(file_name)
             slab_list[index] = mg.Structure.from_file(file_name)
             os.remove(file_name)
         return slab_list
