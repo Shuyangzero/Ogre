@@ -201,7 +201,6 @@ class OrganicSlabGenerator(SlabGenerator):
                     slab_several_layers.center(vacuum=self.vacuum_size, axis=2)
             if c_perpendicular is True:
                 slab_several_layers = utils.modify_cell(slab_several_layers)
-            #print("file_name before fourth write is {}".format(file_name),flush=True)
             write(file_name, images=slab_several_layers,format = "cif",parallel=False)
             #utils.modify_poscar(file_name)
             slab_several_layers = mg.Structure.from_file(file_name)
@@ -217,7 +216,6 @@ class OrganicSlabGenerator(SlabGenerator):
             #     slab_several_layers.make_supercell(supercell_size_copy)
             surface_list.append(slab_several_layers.get_sorted_structure())
         return surface_list
-
 
     def _cleave_one_layer(self, virtual_layers=4, virtual_vacuum=1000):
         """
