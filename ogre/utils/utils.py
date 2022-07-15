@@ -29,7 +29,7 @@ def from_ASE_to_pymatgen(working_dir, images):
     change ASE structure to pymatgen structure
     """
     file_name = working_dir + "/temp.POSCAR.vasp"
-    io.write(file_name, images)
+    io.write(file_name, images,parallel=False)
     modify_poscar(file_name)
     slab = mg.Structure.from_file(file_name)
     os.remove(file_name)
@@ -1612,10 +1612,10 @@ def delete_molecules(slab, working_directory, vacuum_size=None, num_to_delete=0)
         file_name = os.path.join(working_directory, "delete_layer.POSCAR.vasp")
         Poscar(slab_delete.get_sorted_structure()
                ).write_file(file_name)
-        slab_delete_layer = io.read(file_name)
+        slab_delete_layer = io.read(file_name,parallel=False)
         os.remove(file_name)
         slab_delete_layer.center(vacuum=vacuum_size, axis=2)
-        io.write(file_name, images=slab_delete_layer)
+        io.write(file_name, images=slab_delete_layer,parallel=False)
         modify_poscar(file_name)
         slab_delete = mg.Structure.from_file(file_name)
         os.remove(file_name)
