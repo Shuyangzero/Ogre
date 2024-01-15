@@ -15,7 +15,7 @@ setup(
               #'ibslib/calculators',
               ],
     # find_packages(exclude=[]),
-    install_requires=['numpy', 'matplotlib', 'pymatgen==2019.6.5', "sklearn",
+    install_requires=['numpy', 'matplotlib', 'pymatgen==2019.6.5', "scikit-learn",
                       "torch", "scipy", "pymongo", "pandas",
                       'networkx==2.3', 'tqdm',
                       "ase"],
