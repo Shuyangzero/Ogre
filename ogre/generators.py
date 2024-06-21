@@ -908,7 +908,11 @@ def atomic_task(name,
                           format_dict[format_string]), 
                           slab_ase,parallel=False)
                   
-    shutil.rmtree(working_dir)
+    # This try-except is used to avoid FileNotFoundError when Ogre is called by MPI processes.
+    try:
+        shutil.rmtree(working_dir)
+    except FileNotFoundError:
+        print(f"Directory {working_dir} was already deleted.")
 
 
 def cleave_for_surface_energies(structure_path, 
